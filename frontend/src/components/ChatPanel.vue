@@ -423,7 +423,7 @@ const sendMessage = async () => {
     }
 
     // Streaming response
-    let assistantMessage: Message = {
+    const assistantMessage: Message = {
       role: 'assistant',
       content: '',
     }
