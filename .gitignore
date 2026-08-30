@@ -56,6 +56,15 @@ tmp/
 *.csv
 *.xlsx
 
+# Minimal, deterministic fixtures required by the automated test suite.
+!backend/tests/fixtures/
+!backend/tests/fixtures/sample.csv
+!backend/data/
+backend/data/*
+!backend/data/evaluation/
+backend/data/evaluation/*
+!backend/data/evaluation/agent_routing_eval_dataset_v1.json
+
 # Local backups and agent settings
 *.bak
 .claude/settings.local.json

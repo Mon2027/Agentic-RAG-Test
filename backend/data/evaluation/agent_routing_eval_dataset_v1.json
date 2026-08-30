@@ -1,0 +1,600 @@
+{
+  "dataset_id": "agent_routing_eval_v1",
+  "version": "1.0",
+  "created_at": "2026-08-08",
+  "description": "Agent 路由与工具选择评测集：10 条 dev 基础题用于链路验证，10 条 test 边界/风险题用于正式验收。",
+  "execution_policy": {
+    "run_order": [
+      "dev",
+      "test"
+    ],
+    "runs_per_case": 1,
+    "boundary_repeat_runs": 3,
+    "repeat_case_ids": [
+      "AGENT-RAG-003",
+      "AGENT-WEB-003",
+      "AGENT-DIRECT-003",
+      "AGENT-NA-003",
+      "AGENT-MULTI-001"
+    ],
+    "target_route_accuracy": 0.9
+  },
+  "data_fixture": {
+    "source_path": "tests/fixtures/sample.csv",
+    "staging_policy": "运行前复制到独立临时 uploads 目录，不写入正式 data/uploads",
+    "staged_file_name": "11111111-1111-4111-8111-111111111111_sample.csv",
+    "file_id": "11111111-1111-4111-8111-111111111111",
+    "original_file_name": "sample.csv",
+    "row_count": 8,
+    "columns": [
+      "name",
+      "age",
+      "city",
+      "salary",
+      "join_date"
+    ]
+  },
+  "global_constraints": {
+    "forbidden_subagents": [
+      "general-purpose"
+    ],
+    "forbidden_tools": [
+      "write_todos",
+      "ls",
+      "read_file",
+      "write_file",
+      "edit_file",
+      "glob",
+      "grep",
+      "execute"
+    ],
+    "business_tools": [
+      "task",
+      "list_available_reports",
+      "check_rag_relevance",
+      "search_reports",
+      "get_report_summary",
+      "list_data_files",
+      "read_data_file",
+      "read_csv_file",
+      "analyze_data",
+      "create_chart",
+      "web_search",
+      "web_search_quick"
+    ]
+  },
+  "cases": [
+    {
+      "id": "AGENT-RAG-001",
+      "question": "根据已上传的具身智能研报，奥普特如何从机器视觉延伸到具身智能，目前有哪些合作或送样进展？",
+      "category": "rag",
+      "difficulty": "basic",
+      "metadata": {
+        "split": "dev",
+        "topic": "embodied_intelligence"
+      },
+      "expected": {
+        "route": "rag",
+        "required_subagents": ["rag-analyst"],
+        "allowed_subagents": ["rag-analyst"],
+        "forbidden_subagents": ["data-analyst"],
+        "required_tools": ["task", "search_reports"],
+        "required_tool_groups": [],
+        "forbidden_tools": ["list_data_files", "read_data_file", "read_csv_file", "analyze_data", "create_chart", "web_search", "web_search_quick"],
+        "max_tool_calls": 6,
+        "allow_web": false,
+        "should_direct_answer": false,
+        "parameter_constraints": [
+          {"tool": "task", "argument": "subagent_type", "operator": "includes", "value": "rag-analyst"},
+          {"tool": "search_reports", "argument": "topic", "operator": "equals", "value": "embodied_intelligence"}
+        ],
+        "completion_criteria": ["回答基于本地研报证据", "不得用联网结果替代本地研报"]
+      }
+    },
+    {
+      "id": "AGENT-RAG-002",
+      "question": "根据已上传的低空经济研报，中信海直2025年上半年营业收入和同比增速是多少？",
+      "category": "rag",
+      "difficulty": "basic",
+      "metadata": {
+        "split": "dev",
+        "topic": "low_altitude"
+      },
+      "expected": {
+        "route": "rag",
+        "required_subagents": ["rag-analyst"],
+        "allowed_subagents": ["rag-analyst"],
+        "forbidden_subagents": ["data-analyst"],
+        "required_tools": ["task", "search_reports"],
+        "required_tool_groups": [],
+        "forbidden_tools": ["list_data_files", "read_data_file", "read_csv_file", "analyze_data", "create_chart", "web_search", "web_search_quick"],
+        "max_tool_calls": 6,
+        "allow_web": false,
+        "should_direct_answer": false,
+        "parameter_constraints": [
+          {"tool": "task", "argument": "subagent_type", "operator": "includes", "value": "rag-analyst"},
+          {"tool": "search_reports", "argument": "topic", "operator": "equals", "value": "low_altitude"}
+        ],
+        "completion_criteria": ["调用低空经济主题研报检索", "保留报告来源信息"]
+      }
+    },
+    {
+      "id": "AGENT-DATA-001",
+      "question": "读取已上传的sample.csv，告诉我共有多少行、多少列。",
+      "category": "data",
+      "difficulty": "basic",
+      "metadata": {
+        "split": "dev",
+        "fixture": "sample.csv"
+      },
+      "expected": {
+        "route": "data",
+        "required_subagents": ["data-analyst"],
+        "allowed_subagents": ["data-analyst"],
+        "forbidden_subagents": ["rag-analyst"],
+        "required_tools": ["task", "list_data_files"],
+        "required_tool_groups": [["read_data_file", "read_csv_file"]],
+        "forbidden_tools": ["search_reports", "get_report_summary", "web_search", "web_search_quick"],
+        "max_tool_calls": 5,
+        "allow_web": false,
+        "should_direct_answer": false,
+        "parameter_constraints": [
+          {"tool": "task", "argument": "subagent_type", "operator": "includes", "value": "data-analyst"},
+          {"tool": "read_data_file|read_csv_file", "argument": "file_id", "operator": "not_empty", "value": true}
+        ],
+        "completion_criteria": ["返回8行5列", "不得凭问题文本直接猜测"]
+      }
+    },
+    {
+      "id": "AGENT-DATA-002",
+      "question": "分析已上传的sample.csv的salary列，给出描述性统计。",
+      "category": "data",
+      "difficulty": "basic",
+      "metadata": {
+        "split": "dev",
+        "fixture": "sample.csv"
+      },
+      "expected": {
+        "route": "data",
+        "required_subagents": ["data-analyst"],
+        "allowed_subagents": ["data-analyst"],
+        "forbidden_subagents": ["rag-analyst"],
+        "required_tools": ["task", "list_data_files", "analyze_data"],
+        "required_tool_groups": [["read_data_file", "read_csv_file"]],
+        "forbidden_tools": ["search_reports", "get_report_summary", "web_search", "web_search_quick"],
+        "max_tool_calls": 6,
+        "allow_web": false,
+        "should_direct_answer": false,
+        "parameter_constraints": [
+          {"tool": "task", "argument": "subagent_type", "operator": "includes", "value": "data-analyst"},
+          {"tool": "analyze_data", "argument": "analysis_type", "operator": "equals", "value": "describe"},
+          {"tool": "analyze_data", "argument": "columns", "operator": "contains", "value": "salary"}
+        ],
+        "completion_criteria": ["描述性统计来自sample.csv的salary列", "不得调用研报或联网工具"]
+      }
+    },
+    {
+      "id": "AGENT-WEB-001",
+      "question": "请联网查询截至2026年8月8日英伟达的最新股价。",
+      "category": "web",
+      "difficulty": "basic",
+      "metadata": {
+        "split": "dev",
+        "time_sensitive": true
+      },
+      "expected": {
+        "route": "web",
+        "required_subagents": [],
+        "allowed_subagents": [],
+        "forbidden_subagents": ["rag-analyst", "data-analyst"],
+        "required_tools": [],
+        "required_tool_groups": [["web_search", "web_search_quick"]],
+        "forbidden_tools": ["task", "search_reports", "list_data_files", "analyze_data", "create_chart"],
+        "max_tool_calls": 2,
+        "allow_web": true,
+        "should_direct_answer": false,
+        "parameter_constraints": [
+          {"tool": "web_search|web_search_quick", "argument": "query", "operator": "contains", "value": "英伟达"}
+        ],
+        "completion_criteria": ["使用联网搜索处理时效信息", "回答标注联网来源"]
+      }
+    },
+    {
+      "id": "AGENT-WEB-002",
+      "question": "请查询今天北京的天气情况。",
+      "category": "web",
+      "difficulty": "basic",
+      "metadata": {
+        "split": "dev",
+        "time_sensitive": true
+      },
+      "expected": {
+        "route": "web",
+        "required_subagents": [],
+        "allowed_subagents": [],
+        "forbidden_subagents": ["rag-analyst", "data-analyst"],
+        "required_tools": [],
+        "required_tool_groups": [["web_search", "web_search_quick"]],
+        "forbidden_tools": ["task", "search_reports", "list_data_files", "analyze_data", "create_chart"],
+        "max_tool_calls": 2,
+        "allow_web": true,
+        "should_direct_answer": false,
+        "parameter_constraints": [
+          {"tool": "web_search|web_search_quick", "argument": "query", "operator": "contains", "value": "北京"}
+        ],
+        "completion_criteria": ["调用联网工具", "不使用本地研报或数据文件"]
+      }
+    },
+    {
+      "id": "AGENT-DIRECT-001",
+      "question": "1加1等于多少？",
+      "category": "direct",
+      "difficulty": "basic",
+      "metadata": {
+        "split": "dev"
+      },
+      "expected": {
+        "route": "direct",
+        "required_subagents": [],
+        "allowed_subagents": [],
+        "forbidden_subagents": ["rag-analyst", "data-analyst"],
+        "required_tools": [],
+        "required_tool_groups": [],
+        "forbidden_tools": ["task", "search_reports", "list_data_files", "analyze_data", "create_chart", "web_search", "web_search_quick"],
+        "max_tool_calls": 0,
+        "allow_web": false,
+        "should_direct_answer": true,
+        "parameter_constraints": [],
+        "completion_criteria": ["主Agent直接回答2", "不得调用任何工具"]
+      }
+    },
+    {
+      "id": "AGENT-DIRECT-002",
+      "question": "用一句话解释什么是同比增长。",
+      "category": "direct",
+      "difficulty": "basic",
+      "metadata": {
+        "split": "dev"
+      },
+      "expected": {
+        "route": "direct",
+        "required_subagents": [],
+        "allowed_subagents": [],
+        "forbidden_subagents": ["rag-analyst", "data-analyst"],
+        "required_tools": [],
+        "required_tool_groups": [],
+        "forbidden_tools": ["task", "search_reports", "list_data_files", "analyze_data", "create_chart", "web_search", "web_search_quick"],
+        "max_tool_calls": 0,
+        "allow_web": false,
+        "should_direct_answer": true,
+        "parameter_constraints": [],
+        "completion_criteria": ["主Agent直接给出通用概念解释", "不得检索研报或联网"]
+      }
+    },
+    {
+      "id": "AGENT-NA-001",
+      "question": "仅根据已上传研报，道通科技2026年第二季度Avant Robotics Gen1的实际销量是多少？",
+      "category": "no_answer",
+      "difficulty": "basic",
+      "metadata": {
+        "split": "dev",
+        "topic": "embodied_intelligence",
+        "answerable": false
+      },
+      "expected": {
+        "route": "no_answer",
+        "required_subagents": ["rag-analyst"],
+        "allowed_subagents": ["rag-analyst"],
+        "forbidden_subagents": ["data-analyst"],
+        "required_tools": ["task", "search_reports"],
+        "required_tool_groups": [],
+        "forbidden_tools": ["list_data_files", "analyze_data", "create_chart", "web_search", "web_search_quick"],
+        "max_tool_calls": 6,
+        "allow_web": false,
+        "should_direct_answer": false,
+        "parameter_constraints": [
+          {"tool": "task", "argument": "subagent_type", "operator": "includes", "value": "rag-analyst"},
+          {"tool": "search_reports", "argument": "topic", "operator": "equals", "value": "embodied_intelligence"}
+        ],
+        "completion_criteria": ["明确研报没有该实际销量", "不得编造数字", "不得联网补充"]
+      }
+    },
+    {
+      "id": "AGENT-NA-002",
+      "question": "请保证百分之百准确地预测明天彩票开奖的全部号码。",
+      "category": "no_answer",
+      "difficulty": "basic",
+      "metadata": {
+        "split": "dev",
+        "answerable": false
+      },
+      "expected": {
+        "route": "no_answer",
+        "required_subagents": [],
+        "allowed_subagents": [],
+        "forbidden_subagents": ["rag-analyst", "data-analyst"],
+        "required_tools": [],
+        "required_tool_groups": [],
+        "forbidden_tools": ["task", "search_reports", "list_data_files", "analyze_data", "create_chart", "web_search", "web_search_quick"],
+        "max_tool_calls": 0,
+        "allow_web": false,
+        "should_direct_answer": true,
+        "parameter_constraints": [],
+        "completion_criteria": ["直接说明无法保证预测", "不得生成伪装成确定结果的号码"]
+      }
+    },
+    {
+      "id": "AGENT-RAG-003",
+      "question": "奥普特在具身智能方向有哪些合作、送样和小批量进展？只使用已上传研报，不要联网。",
+      "category": "rag",
+      "difficulty": "boundary",
+      "metadata": {
+        "split": "test",
+        "topic": "embodied_intelligence"
+      },
+      "expected": {
+        "route": "rag",
+        "required_subagents": ["rag-analyst"],
+        "allowed_subagents": ["rag-analyst"],
+        "forbidden_subagents": ["data-analyst"],
+        "required_tools": ["task", "search_reports"],
+        "required_tool_groups": [],
+        "forbidden_tools": ["list_data_files", "analyze_data", "create_chart", "web_search", "web_search_quick"],
+        "max_tool_calls": 6,
+        "allow_web": false,
+        "should_direct_answer": false,
+        "parameter_constraints": [
+          {"tool": "task", "argument": "subagent_type", "operator": "includes", "value": "rag-analyst"},
+          {"tool": "search_reports", "argument": "topic", "operator": "equals", "value": "embodied_intelligence"}
+        ],
+        "completion_criteria": ["本地研报优先", "不得因问题通用而联网"]
+      }
+    },
+    {
+      "id": "AGENT-RAG-004",
+      "question": "凌云光2025年营收和归母净利润是多少，分别同比增长多少？",
+      "category": "rag",
+      "difficulty": "boundary",
+      "metadata": {
+        "split": "test",
+        "topic": "embodied_intelligence"
+      },
+      "expected": {
+        "route": "rag",
+        "required_subagents": ["rag-analyst"],
+        "allowed_subagents": ["rag-analyst"],
+        "forbidden_subagents": ["data-analyst"],
+        "required_tools": ["task", "search_reports"],
+        "required_tool_groups": [],
+        "forbidden_tools": ["list_data_files", "analyze_data", "create_chart", "web_search", "web_search_quick"],
+        "max_tool_calls": 6,
+        "allow_web": false,
+        "should_direct_answer": false,
+        "parameter_constraints": [
+          {"tool": "task", "argument": "subagent_type", "operator": "includes", "value": "rag-analyst"},
+          {"tool": "search_reports", "argument": "topic", "operator": "equals", "value": "embodied_intelligence"}
+        ],
+        "completion_criteria": ["即使没有研报关键词也优先本地研报", "不得直接联网搜索公司财务数据"]
+      }
+    },
+    {
+      "id": "AGENT-DATA-003",
+      "question": "用已上传的sample.csv，以name为横轴、salary为纵轴生成柱状图。",
+      "category": "data",
+      "difficulty": "boundary",
+      "metadata": {
+        "split": "test",
+        "fixture": "sample.csv"
+      },
+      "expected": {
+        "route": "data",
+        "required_subagents": ["data-analyst"],
+        "allowed_subagents": ["data-analyst"],
+        "forbidden_subagents": ["rag-analyst"],
+        "required_tools": ["task", "list_data_files", "create_chart"],
+        "required_tool_groups": [["read_data_file", "read_csv_file"]],
+        "forbidden_tools": ["search_reports", "get_report_summary", "web_search", "web_search_quick"],
+        "max_tool_calls": 7,
+        "allow_web": false,
+        "should_direct_answer": false,
+        "parameter_constraints": [
+          {"tool": "task", "argument": "subagent_type", "operator": "includes", "value": "data-analyst"},
+          {"tool": "create_chart", "argument": "chart_type", "operator": "equals", "value": "bar"},
+          {"tool": "create_chart", "argument": "x_column", "operator": "equals", "value": "name"},
+          {"tool": "create_chart", "argument": "y_column", "operator": "equals", "value": "salary"}
+        ],
+        "completion_criteria": ["生成可访问的图表路径", "不调用研报或联网工具"]
+      }
+    },
+    {
+      "id": "AGENT-DATA-004",
+      "question": "我当前上传了哪些CSV或Excel表格？只列出文件，不要读取研报。",
+      "category": "data",
+      "difficulty": "boundary",
+      "metadata": {
+        "split": "test",
+        "fixture": "sample.csv"
+      },
+      "expected": {
+        "route": "data",
+        "required_subagents": ["data-analyst"],
+        "allowed_subagents": ["data-analyst"],
+        "forbidden_subagents": ["rag-analyst"],
+        "required_tools": ["task", "list_data_files"],
+        "required_tool_groups": [],
+        "forbidden_tools": ["read_data_file", "read_csv_file", "analyze_data", "create_chart", "search_reports", "get_report_summary", "web_search", "web_search_quick"],
+        "max_tool_calls": 3,
+        "allow_web": false,
+        "should_direct_answer": false,
+        "parameter_constraints": [
+          {"tool": "task", "argument": "subagent_type", "operator": "includes", "value": "data-analyst"}
+        ],
+        "completion_criteria": ["列出sample.csv", "不读取文件内容或研报"]
+      }
+    },
+    {
+      "id": "AGENT-WEB-003",
+      "question": "请根据互联网上截至2026年8月8日的最新消息，概括具身智能行业今天有哪些新动态，不要把已上传研报中的历史内容当作最新消息。",
+      "category": "web",
+      "difficulty": "boundary",
+      "metadata": {
+        "split": "test",
+        "time_sensitive": true
+      },
+      "expected": {
+        "route": "web",
+        "required_subagents": [],
+        "allowed_subagents": [],
+        "forbidden_subagents": ["rag-analyst", "data-analyst"],
+        "required_tools": [],
+        "required_tool_groups": [["web_search", "web_search_quick"]],
+        "forbidden_tools": ["task", "search_reports", "list_data_files", "analyze_data", "create_chart"],
+        "max_tool_calls": 3,
+        "allow_web": true,
+        "should_direct_answer": false,
+        "parameter_constraints": [
+          {"tool": "web_search|web_search_quick", "argument": "query", "operator": "contains", "value": "具身智能"}
+        ],
+        "completion_criteria": ["明确使用联网信息", "不得把本地历史研报冒充当天动态"]
+      }
+    },
+    {
+      "id": "AGENT-WEB-004",
+      "question": "核实中信海直截至2026年8月8日的最新股价，不要使用已上传研报中的历史价格。",
+      "category": "web",
+      "difficulty": "boundary",
+      "metadata": {
+        "split": "test",
+        "time_sensitive": true
+      },
+      "expected": {
+        "route": "web",
+        "required_subagents": [],
+        "allowed_subagents": [],
+        "forbidden_subagents": ["rag-analyst", "data-analyst"],
+        "required_tools": [],
+        "required_tool_groups": [["web_search", "web_search_quick"]],
+        "forbidden_tools": ["task", "search_reports", "list_data_files", "analyze_data", "create_chart"],
+        "max_tool_calls": 2,
+        "allow_web": true,
+        "should_direct_answer": false,
+        "parameter_constraints": [
+          {"tool": "web_search|web_search_quick", "argument": "query", "operator": "contains", "value": "中信海直"}
+        ],
+        "completion_criteria": ["使用联网工具核实当前股价", "不调用RAG读取历史价格"]
+      }
+    },
+    {
+      "id": "AGENT-DIRECT-003",
+      "question": "“研报”和“报告”这两个词在日常用法中有什么区别？不要查询任何文档。",
+      "category": "direct",
+      "difficulty": "boundary",
+      "metadata": {
+        "split": "test"
+      },
+      "expected": {
+        "route": "direct",
+        "required_subagents": [],
+        "allowed_subagents": [],
+        "forbidden_subagents": ["rag-analyst", "data-analyst"],
+        "required_tools": [],
+        "required_tool_groups": [],
+        "forbidden_tools": ["task", "search_reports", "list_available_reports", "list_data_files", "analyze_data", "create_chart", "web_search", "web_search_quick"],
+        "max_tool_calls": 0,
+        "allow_web": false,
+        "should_direct_answer": true,
+        "parameter_constraints": [],
+        "completion_criteria": ["识别为词义解释而不是研报检索", "不得调用任何工具"]
+      }
+    },
+    {
+      "id": "AGENT-NA-003",
+      "question": "请用已上传的sample.csv计算department列的平均salary；如果没有department列，就明确告诉我无法计算。",
+      "category": "no_answer",
+      "difficulty": "boundary",
+      "metadata": {
+        "split": "test",
+        "fixture": "sample.csv",
+        "answerable": false
+      },
+      "expected": {
+        "route": "no_answer",
+        "required_subagents": ["data-analyst"],
+        "allowed_subagents": ["data-analyst"],
+        "forbidden_subagents": ["rag-analyst"],
+        "required_tools": ["task", "list_data_files"],
+        "required_tool_groups": [["read_data_file", "read_csv_file"]],
+        "forbidden_tools": ["search_reports", "get_report_summary", "web_search", "web_search_quick"],
+        "max_tool_calls": 6,
+        "allow_web": false,
+        "should_direct_answer": false,
+        "parameter_constraints": [
+          {"tool": "task", "argument": "subagent_type", "operator": "includes", "value": "data-analyst"},
+          {"tool": "read_data_file|read_csv_file", "argument": "file_id", "operator": "not_empty", "value": true}
+        ],
+        "completion_criteria": ["识别department列不存在", "不得编造分组平均值"]
+      }
+    },
+    {
+      "id": "AGENT-MULTI-001",
+      "question": "先根据已上传研报概括奥普特的具身智能合作进展，再联网核实奥普特截至2026年8月8日的最新股价，并明确区分两个来源。",
+      "category": "multi_intent",
+      "difficulty": "boundary",
+      "metadata": {
+        "split": "test",
+        "topic": "embodied_intelligence",
+        "time_sensitive": true
+      },
+      "expected": {
+        "route": "multi",
+        "required_subagents": ["rag-analyst"],
+        "allowed_subagents": ["rag-analyst"],
+        "forbidden_subagents": ["data-analyst"],
+        "required_tools": ["task", "search_reports"],
+        "required_tool_groups": [["web_search", "web_search_quick"]],
+        "forbidden_tools": ["list_data_files", "read_data_file", "read_csv_file", "analyze_data", "create_chart"],
+        "max_tool_calls": 8,
+        "allow_web": true,
+        "should_direct_answer": false,
+        "parameter_constraints": [
+          {"tool": "task", "argument": "subagent_type", "operator": "includes", "value": "rag-analyst"},
+          {"tool": "search_reports", "argument": "topic", "operator": "equals", "value": "embodied_intelligence"},
+          {"tool": "web_search|web_search_quick", "argument": "query", "operator": "contains", "value": "奥普特"}
+        ],
+        "completion_criteria": ["同时使用本地研报和联网工具", "清楚区分研报证据与实时股价来源"]
+      }
+    },
+    {
+      "id": "AGENT-MULTI-002",
+      "question": "先读取sample.csv并告诉我北京有多少名员工，再根据已上传的具身智能研报概括绿的谐波的产品与交付进展；两部分分别作答。",
+      "category": "multi_intent",
+      "difficulty": "boundary",
+      "metadata": {
+        "split": "test",
+        "fixture": "sample.csv",
+        "topic": "embodied_intelligence"
+      },
+      "expected": {
+        "route": "multi",
+        "required_subagents": ["data-analyst", "rag-analyst"],
+        "allowed_subagents": ["data-analyst", "rag-analyst"],
+        "forbidden_subagents": [],
+        "required_tools": ["task", "list_data_files", "search_reports"],
+        "required_tool_groups": [["read_data_file", "read_csv_file"]],
+        "forbidden_tools": ["web_search", "web_search_quick"],
+        "max_tool_calls": 10,
+        "tool_call_counts": {
+          "task": {"min": 2, "max": 3}
+        },
+        "allow_web": false,
+        "should_direct_answer": false,
+        "parameter_constraints": [
+          {"tool": "task", "argument": "subagent_type", "operator": "includes", "value": "data-analyst"},
+          {"tool": "task", "argument": "subagent_type", "operator": "includes", "value": "rag-analyst"},
+          {"tool": "search_reports", "argument": "topic", "operator": "equals", "value": "embodied_intelligence"}
+        ],
+        "completion_criteria": ["Data与RAG两个子任务均完成", "北京员工数来自sample.csv", "绿的谐波结论来自本地研报"]
+      }
+    }
+  ]
+}
