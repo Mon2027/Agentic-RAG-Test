@@ -37,8 +37,10 @@ REPORT_SOURCE_PATTERN = re.compile(r"-\s+研报《[^》]+》第\d+(?:-\d+)?页(?
 
 
 def _safe_upload_filename(filename: str) -> str:
-    """Return only the final filename component from a client-provided name."""
-    return Path(filename).name.replace("\\", "_").replace("/", "_")
+    """Return the basename of a client filename on every server platform."""
+    # Browsers may submit either Windows or POSIX separators.  Normalize them
+    # before asking pathlib for the final component so Linux and Windows agree.
+    return Path(filename.replace("\\", "/")).name
 
 
 def process_pdf_task(
