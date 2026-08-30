@@ -6,10 +6,10 @@
 |---|---|
 | 项目名称 | Agentic RAG 多智能体研报分析系统 |
 | 文档名称 | 持续集成（CI）建设计划 |
-| 文档版本 | v1.1 |
+| 文档版本 | v1.2 |
 | 制定日期 | 2026-08-22 |
 | 最近更新 | 2026-08-30 |
-| 当前状态 | CI v1 已接入 GitHub Actions；Push 实跑连续稳定，PR/手动触发与分支保护待继续验收 |
+| 当前状态 | CI v1 的 Push、Pull Request 和手动触发均已实跑通过；分支保护待用户确认 |
 | 目标平台 | GitHub Actions |
 | 预计投入 | 4～8 小时 |
 | 本期范围 | 仅建设 CI，不实施 CD、自动部署或生产环境变更 |
@@ -36,7 +36,8 @@ CI 建成后，每次向默认分支推送代码或提交 Pull Request 时，应
 - [x] 修复上传文件名清理的跨平台路径问题；
 - [x] [GitHub Actions 第 5 次运行](https://github.com/Mon2027/Agentic-RAG-Test/actions/runs/33313489406)首次全绿：后端 `283 passed`，前端构建成功；
 - [x] [GitHub Actions 第 6 次运行](https://github.com/Mon2027/Agentic-RAG-Test/actions/runs/33313621268)继续全绿，确认文档提交后的 CI 基线稳定；
-- [ ] 验证 Pull Request 和 `workflow_dispatch` 手动触发；
+- [x] 通过临时 [PR #1](https://github.com/Mon2027/Agentic-RAG-Test/pull/1) 验证 `pull_request` 触发，[第 8 次运行](https://github.com/Mon2027/Agentic-RAG-Test/actions/runs/33315941702)全绿；
+- [x] 从 `main` 调用 `workflow_dispatch`，[第 9 次运行](https://github.com/Mon2027/Agentic-RAG-Test/actions/runs/33316034669)全绿；
 - [x] 通过正常修复与文档提交连续获得 3 次绿色流水线；
 - [ ] 用户确认后启用分支保护；
 - [ ] CI v2 的 Ruff 和 ESLint 门禁。
@@ -55,7 +56,7 @@ CI 建成后，每次向默认分支推送代码或提交 Pull Request 时，应
 
 ### 3.2 当前剩余缺口
 
-- Push 已在真实 GitHub Runner 上验证，Pull Request 和手动触发尚未进行行为验证；
+- Push、Pull Request 和手动触发均已在真实 GitHub Runner 上完成行为验证；
 - Push 流水线已完成连续稳定性验证，分支保护仍需用户确认后配置；
 - Ruff 当前检查出 50 个问题，其中 46 个可自动修复，其余需要人工处理；
 - 前端 `lint` 脚本带有 `--fix`，不适合作为只读 CI 检查；
@@ -341,8 +342,8 @@ npm run build
 - [x] 后端依赖可以从锁文件全新安装；
 - [x] 前端依赖可以通过 `npm ci` 全新安装；
 - [x] GitHub Push 触发有效；
-- [ ] GitHub Pull Request 触发有效；
-- [ ] GitHub 手动触发有效；
+- [x] GitHub Pull Request 触发有效；
+- [x] GitHub 手动触发有效；
 - [x] 后端 pytest 全量通过；
 - [x] 前端 TypeScript 检查和生产构建通过；
 - [x] 后端与前端 Job 并行执行；
