@@ -6,10 +6,10 @@
 |---|---|
 | 项目名称 | Agentic RAG 多智能体研报分析系统 |
 | 文档名称 | 持续集成（CI）建设计划 |
-| 文档版本 | v1.0 |
+| 文档版本 | v1.1 |
 | 制定日期 | 2026-08-22 |
 | 最近更新 | 2026-08-30 |
-| 当前状态 | CI v1 已在本地落地并通过验证，Git 与 origin 已配置，待首次推送后进行 GitHub 实跑 |
+| 当前状态 | CI v1 已接入 GitHub Actions；Push 实跑已首次全绿，PR/手动触发与连续稳定性待继续验收 |
 | 目标平台 | GitHub Actions |
 | 预计投入 | 4～8 小时 |
 | 本期范围 | 仅建设 CI，不实施 CD、自动部署或生产环境变更 |
@@ -22,7 +22,7 @@ CI 建成后，每次向默认分支推送代码或提交 Pull Request 时，应
 
 ### 2.1 实施记录
 
-截至 2026-08-30，CI v1 已完成以下本地实施与验证：
+截至 2026-08-30，CI v1 已完成以下实施与验证：
 
 - [x] 新增 `.github/workflows/ci.yml`，包含后端测试和前端构建两个并行 Job；
 - [x] 生成 `backend/uv.lock`，锁定 187 个后端项目及传递依赖；
@@ -31,7 +31,11 @@ CI 建成后，每次向默认分支推送代码或提交 Pull Request 时，应
 - [x] 使用 `npm ci` 重新安装前端依赖并完成生产构建；
 - [x] 工作流采用只读权限、并发取消、超时、依赖缓存和固定提交版本的 Action；
 - [x] 初始化有效 Git 元数据，并配置空仓库 `https://github.com/Mon2027/Agentic-RAG-Test.git` 为 origin；
-- [ ] 在 GitHub Runner 上验证 Push、Pull Request 和手动触发；
+- [x] 完成首次提交和推送，并在 GitHub Linux Runner 上验证 Push 触发；
+- [x] 补充测试所需的最小 CSV 夹具和 Agent 路由评测数据集，继续排除其他本地业务数据及历史评测结果；
+- [x] 修复上传文件名清理的跨平台路径问题；
+- [x] [GitHub Actions 第 5 次运行](https://github.com/Mon2027/Agentic-RAG-Test/actions/runs/33313489406)首次全绿：后端 `283 passed`，前端构建成功；
+- [ ] 验证 Pull Request 和 `workflow_dispatch` 手动触发；
 - [ ] 连续获得 3 次绿色流水线后启用分支保护；
 - [ ] CI v2 的 Ruff 和 ESLint 门禁。
 
@@ -49,13 +53,12 @@ CI 建成后，每次向默认分支推送代码或提交 Pull Request 时，应
 
 ### 3.2 当前剩余缺口
 
-- `.github/workflows/ci.yml` 已生成，但尚未在真实 GitHub Runner 上执行；
-- 本地 Git 已初始化为 `main` 并配置 origin，尚未完成首次提交和推送；
-- 后端 `uv.lock` 已生成并完成本地冷安装验证，尚未提交到远端；
+- Push 已在真实 GitHub Runner 上验证，Pull Request 和手动触发尚未进行行为验证；
+- 当前仅获得 1 次绿色流水线，尚未达到启用分支保护所需的连续 3 次；
 - Ruff 当前检查出 50 个问题，其中 46 个可自动修复，其余需要人工处理；
 - 前端 `lint` 脚本带有 `--fix`，不适合作为只读 CI 检查；
 - 前端尚未安装和配置 ESLint，也没有前端自动化测试；
-- 当前代码主要在 Windows 环境验证，需要确认在 GitHub Linux Runner 上不存在大小写、路径分隔符或系统依赖问题。
+- CI v1 已修复目前发现的 Windows/Linux 路径分隔符差异，仍需通过后续运行观察稳定性。
 
 ## 4. 建设目标
 
@@ -112,7 +115,7 @@ CI 工作流计划支持以下触发方式：
 - 工作流默认仅授予 `contents: read` 权限；
 - 不向 Pull Request 注入生产密钥；
 - 不配置 `ANTHROPIC_API_KEY`、`ANTHROPIC_AUTH_TOKEN` 或 `TAVILY_API_KEY`；
-- 不上传 `backend/data`、本地 `.env`、模型缓存或用户文件；
+- 除离线测试所需的确定性评测数据集外，不上传 `backend/data` 中的历史结果、正式数据、本地 `.env`、模型缓存或用户文件；
 - CI 中禁止使用会修改源代码的 `ruff --fix`、`eslint --fix`；
 - 为每个 Job 设置合理超时，避免依赖安装或测试异常挂起；
 - 第三方 Action 在实施时选用当前稳定版本，并优先固定到经过验证的提交版本；
@@ -212,7 +215,7 @@ npm run build
 - 后端 283 条测试全部通过；
 - 前端生产构建通过；
 - CI 不配置业务 Secrets 也能成功；
-- 正式 `backend/data` 不被测试读取、修改或上传；
+- 测试只读取已提交的确定性评测数据集，不读取、修改或上传正式数据和历史评测结果；
 - 连续出现 3 次稳定的绿色流水线后，再进入质量门禁阶段。
 
 ### 阶段 3：修复后端 Ruff 基线
@@ -335,12 +338,14 @@ npm run build
 - [x] Git 仓库和 GitHub 远端可正常使用；
 - [x] 后端依赖可以从锁文件全新安装；
 - [x] 前端依赖可以通过 `npm ci` 全新安装；
-- [ ] GitHub Push、Pull Request 和手动触发均有效；
+- [x] GitHub Push 触发有效；
+- [ ] GitHub Pull Request 触发有效；
+- [ ] GitHub 手动触发有效；
 - [x] 后端 pytest 全量通过；
 - [x] 前端 TypeScript 检查和生产构建通过；
-- [ ] 后端与前端 Job 并行执行；
-- [ ] 流水线不需要业务 API Key；
-- [ ] 正式数据未被修改；
+- [x] 后端与前端 Job 并行执行；
+- [x] 流水线不需要业务 API Key；
+- [x] CI 只使用已提交的确定性测试数据，未修改正式数据；
 - [ ] 至少连续 3 次正常提交获得绿色结果。
 
 ### 8.2 CI v2 验收
