@@ -1,9 +1,7 @@
 """Tests for document processor."""
 
-import pytest
-from pathlib import Path
 
-from app.rag.document_processor import DocumentProcessor, DocumentChunk, ParsedDocument
+from app.rag.document_processor import DocumentChunk, DocumentProcessor, ParsedDocument
 
 
 class TestDocumentProcessor:

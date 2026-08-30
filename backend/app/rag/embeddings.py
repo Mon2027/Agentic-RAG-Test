@@ -3,7 +3,6 @@
 import logging
 import os
 from functools import lru_cache
-from typing import Any
 
 from langchain_core.embeddings import Embeddings
 

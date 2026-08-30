@@ -15,8 +15,6 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 class TestMainAgentPrompt:
     """主 Agent 与两个业务子 Agent 的提示词契约测试。"""
@@ -141,8 +139,9 @@ class TestCreateMainAgent:
         assert "task" not in profile.excluded_tools
         assert "web_search" not in profile.excluded_tools
 
-        from app.agents.tool_boundary import BusinessToolBoundaryMiddleware
         from langchain.agents.middleware import TodoListMiddleware
+
+        from app.agents.tool_boundary import BusinessToolBoundaryMiddleware
 
         assert profile.excluded_middleware == frozenset({TodoListMiddleware})
         boundary_middleware = profile.extra_middleware()
@@ -195,7 +194,7 @@ class TestCreateMainAgent:
         with patch.dict("sys.modules", {"deepagents": mock_deepagents}):
             from app.agents.main_agent import create_main_agent
 
-            agent = create_main_agent()
+            create_main_agent()
 
         # Assert：检查模型名称、最大输出 token 和温度等关键推理配置。
         mock_chat_anthropic.assert_called_once()
@@ -243,7 +242,7 @@ class TestCreateMainAgent:
         with patch.dict("sys.modules", {"deepagents": mock_deepagents}):
             from app.agents.main_agent import create_main_agent
 
-            agent = create_main_agent()
+            create_main_agent()
 
         # api_timeout_ms=30000 需要转换成客户端使用的 30.0 秒。
         call_kwargs = mock_chat_anthropic.call_args.kwargs
@@ -288,7 +287,7 @@ class TestCreateMainAgent:
 
             # 额外工具代表业务方在默认配置之外进行的可插拔扩展。
             additional_tool = MagicMock(name="custom_tool")
-            agent = create_main_agent(tools=[additional_tool])
+            create_main_agent(tools=[additional_tool])
 
         # tools 最终同时包含 web_search 与 custom_tool。
         call_kwargs = mock_create_deep_agent.call_args.kwargs
@@ -338,7 +337,7 @@ class TestCreateMainAgent:
                 "tools": [],
                 "model": mock_model,
             }
-            agent = create_main_agent(subagents=[additional_subagent])
+            create_main_agent(subagents=[additional_subagent])
 
         # 默认 2 个 + 自定义 1 个，共 3 个；验证扩展没有覆盖默认角色。
         call_kwargs = mock_create_deep_agent.call_args.kwargs
@@ -354,10 +353,9 @@ class TestGetMainAgent:
         mock_agent = MagicMock()
         mock_create.return_value = mock_agent
 
-        from app.agents.main_agent import get_main_agent
-
         # 单例是模块全局状态；用例前必须重置，避免受其他测试调用顺序影响。
         import app.agents.main_agent as main_agent_module
+        from app.agents.main_agent import get_main_agent
         main_agent_module._main_agent = None
 
         agent1 = get_main_agent()
@@ -374,10 +372,9 @@ class TestGetMainAgent:
         mock_agent = MagicMock()
         mock_create.return_value = mock_agent
 
-        from app.agents.main_agent import get_main_agent
-
         # 显式制造“首次调用”条件。
         import app.agents.main_agent as main_agent_module
+        from app.agents.main_agent import get_main_agent
         main_agent_module._main_agent = None
 
         agent = get_main_agent()

@@ -34,7 +34,6 @@ from app.agents.tool_boundary import (
     BusinessToolBoundaryMiddleware,
 )
 
-
 DISABLED_TOOLS = frozenset({"write_todos", "ls", "read_file", "execute"})
 
 

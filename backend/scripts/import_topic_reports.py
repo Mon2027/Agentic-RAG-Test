@@ -29,7 +29,6 @@ from app.core import get_settings
 from app.rag.document_processor import DocumentProcessor
 from app.rag.vectorstore import VectorStore
 
-
 LOGGER = logging.getLogger("topic_report_import")
 COLLECTION_NAME = "reports"
 FILE_ID_PREFIX = re.compile(

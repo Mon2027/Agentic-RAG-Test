@@ -313,7 +313,7 @@ def analyze_data(
                     change_pct = ((values.iloc[-1] - values.iloc[0]) / values.iloc[0] * 100) if values.iloc[0] != 0 else 0
                     trends.append(f"  - {col}: {trend} ({change_pct:.2f}% change)")
 
-            return f"Trend Analysis:\n" + "\n".join(trends)
+            return "Trend Analysis:\n" + "\n".join(trends)
 
         elif analysis_type == "summary":
             return f"""Data Summary:

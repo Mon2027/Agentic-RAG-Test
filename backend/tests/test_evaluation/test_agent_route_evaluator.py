@@ -29,7 +29,6 @@ from app.evaluation.agent_route_evaluator import (
     score_agent_route,
 )
 
-
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 DATASET_PATH = (
     BACKEND_DIR / "data" / "evaluation" / "agent_routing_eval_dataset_v1.json"

@@ -13,7 +13,6 @@ from typing import Any
 import chromadb
 from chromadb.api.shared_system_client import SharedSystemClient
 
-
 REQUIRED_SAMPLE_FIELDS = {
     "id",
     "query",

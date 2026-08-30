@@ -6,7 +6,6 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import Any
 
-
 TOOL_EVENT_PHASES = {
     "on_tool_start": "start",
     "on_tool_end": "end",

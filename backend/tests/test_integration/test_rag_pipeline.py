@@ -14,7 +14,6 @@ Retriever 重排与上下文组装 → RAG 工具调用。
 """
 
 import os
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 

@@ -25,7 +25,6 @@ from app.evaluation.agent_route_evaluator import (
     planned_invocation_count,
 )
 
-
 DEFAULT_DATASET = Path("data/evaluation/agent_routing_eval_dataset_v1.json")
 
 
