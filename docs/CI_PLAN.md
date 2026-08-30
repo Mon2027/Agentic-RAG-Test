@@ -6,10 +6,10 @@
 |---|---|
 | 项目名称 | Agentic RAG 多智能体研报分析系统 |
 | 文档名称 | 持续集成（CI）建设计划 |
-| 文档版本 | v1.3 |
+| 文档版本 | v2.0 |
 | 制定日期 | 2026-08-22 |
 | 最近更新 | 2026-08-30 |
-| 当前状态 | CI v1 已验收，`main` 分支保护已启用；CI v2 质量门禁待实施 |
+| 当前状态 | CI v2 已实施：pytest、Ruff、类型检查、ESLint 和生产构建均为必需门禁 |
 | 目标平台 | GitHub Actions |
 | 预计投入 | 4～8 小时 |
 | 本期范围 | 仅建设 CI，不实施 CD、自动部署或生产环境变更 |
@@ -22,7 +22,7 @@ CI 建成后，每次向默认分支推送代码或提交 Pull Request 时，应
 
 ### 2.1 实施记录
 
-截至 2026-08-30，CI v1 已完成以下实施与验证：
+截至 2026-08-30，CI 已完成以下实施与验证：
 
 - [x] 新增 `.github/workflows/ci.yml`，包含后端测试和前端构建两个并行 Job；
 - [x] 生成 `backend/uv.lock`，锁定 187 个后端项目及传递依赖；
@@ -40,7 +40,10 @@ CI 建成后，每次向默认分支推送代码或提交 Pull Request 时，应
 - [x] 从 `main` 调用 `workflow_dispatch`，[第 9 次运行](https://github.com/Mon2027/Agentic-RAG-Test/actions/runs/33316034669)全绿；
 - [x] 通过正常修复与文档提交连续获得 3 次绿色流水线；
 - [x] 为 `main` 启用分支保护：必须通过 PR 和两项 CI，管理员不可绕过，禁止强推与删除；
-- [ ] CI v2 的 Ruff 和 ESLint 门禁。
+- [x] 修复 Ruff 基线的 52 个问题，`ruff check .` 达到零问题，pytest 保持 `283 passed`；
+- [x] 接入 ESLint 10 flat config、Vue 和 TypeScript 规则，拆分 `lint` 与只读 `lint:check`；
+- [x] 新增 `Backend lint` 和 `Frontend lint` 并行 Job，并将其加入 `main` 必需检查；
+- [x] 在项目 README 中记录状态徽章和本地 CI 等价命令。
 
 ## 3. 当前基线
 
@@ -58,9 +61,8 @@ CI 建成后，每次向默认分支推送代码或提交 Pull Request 时，应
 
 - Push、Pull Request 和手动触发均已在真实 GitHub Runner 上完成行为验证；
 - `main` 分支保护已经配置，后续变更必须通过 PR 和最新的必需检查；
-- Ruff 当前检查出 50 个问题，其中 46 个可自动修复，其余需要人工处理；
-- 前端 `lint` 脚本带有 `--fix`，不适合作为只读 CI 检查；
-- 前端尚未安装和配置 ESLint，也没有前端自动化测试；
+- Ruff 与 ESLint 已达到零问题基线，后续新增问题会阻止合并；
+- 前端仍没有单元测试或 E2E 测试，本期继续以 ESLint、类型检查和生产构建作为门禁；
 - CI v1 已修复目前发现的 Windows/Linux 路径分隔符差异，仍需通过后续运行观察稳定性。
 
 ## 4. 建设目标
@@ -108,8 +110,8 @@ CI 工作流计划支持以下触发方式：
 |---|---|---|---|
 | `backend-test` | Ubuntu + Python 3.12 | 冻结依赖安装、pytest | 是 |
 | `frontend-build` | Ubuntu + Node.js 24 | `npm ci`、TypeScript 检查、Vite 构建 | 是 |
-| `backend-lint` | Ubuntu + Python 3.12 | Ruff 只读检查 | 第二阶段启用 |
-| `frontend-lint` | Ubuntu + Node.js 24 | ESLint 只读检查 | 第二阶段启用 |
+| `backend-lint` | Ubuntu + Python 3.12 | Ruff 只读检查 | 是 |
+| `frontend-lint` | Ubuntu + Node.js 24 | ESLint 只读检查 | 是 |
 
 后端和前端 Job 不互相依赖，应并行执行并分别显示失败原因。
 
@@ -229,8 +231,8 @@ npm run build
 
 ```powershell
 cd backend
-uv run ruff check app tests --fix
-uv run ruff check app tests
+uv run ruff check . --fix
+uv run ruff check .
 uv run pytest -q
 ```
 
@@ -240,7 +242,7 @@ uv run pytest -q
 2. 手工处理未使用变量、未使用导入等剩余问题；
 3. 不使用未审查的 unsafe fix；
 4. 修复后执行全量 pytest；
-5. 在 CI 中新增只读命令 `uv run ruff check app tests`。
+5. 在 CI 中新增只读命令 `uv run --no-sync ruff check --output-format=github .`。
 
 #### 完成标准
 
@@ -267,7 +269,7 @@ uv run pytest -q
   "scripts": {
     "typecheck": "vue-tsc --noEmit",
     "lint": "eslint . --fix",
-    "lint:check": "eslint ."
+    "lint:check": "eslint . --max-warnings 0"
   }
 }
 ```
@@ -353,12 +355,12 @@ npm run build
 
 ### 8.2 CI v2 验收
 
-- [ ] 后端 Ruff 零问题并成为必需检查；
-- [ ] 前端 ESLint 零问题并成为必需检查；
-- [ ] CI 中不存在自动修复或自动提交操作；
-- [ ] 并发取消和超时设置有效；
+- [x] 后端 Ruff 零问题并成为必需检查；
+- [x] 前端 ESLint 零问题并成为必需检查；
+- [x] CI 中不存在自动修复或自动提交操作；
+- [x] 并发取消和超时设置有效；
 - [x] 分支保护配置完成；
-- [ ] README 已记录本地等价命令和 CI 状态；
+- [x] README 已记录本地等价命令和 CI 状态；
 - [ ] 缓存命中时，正常 CI 总耗时目标不超过 10 分钟；
 - [ ] 冷缓存情况下，正常 CI 总耗时目标不超过 20 分钟。
 
