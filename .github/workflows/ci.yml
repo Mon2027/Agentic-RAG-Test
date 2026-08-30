@@ -43,7 +43,20 @@ jobs:
         run: uv sync --locked --extra dev --python 3.12
 
       - name: Run backend tests
-        run: uv run --no-sync pytest -q
+        shell: bash
+        run: |
+          uv run --no-sync pytest -q 2>&1 | tee pytest-output.txt
+          test_status=${PIPESTATUS[0]}
+
+          if (( test_status != 0 )); then
+            error_output=$(tail -n 120 pytest-output.txt)
+            error_output="${error_output//'%'/'%25'}"
+            error_output="${error_output//$'\r'/'%0D'}"
+            error_output="${error_output//$'\n'/'%0A'}"
+            echo "::error title=Backend pytest failed::$error_output"
+          fi
+
+          exit "$test_status"
 
   frontend-build:
     name: Frontend build
