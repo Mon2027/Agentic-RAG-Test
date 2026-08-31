@@ -11,18 +11,21 @@
 
 # Python 自带的垃圾回收模块；清理 Chroma 后用它促使残留对象及时释放文件句柄。
 import gc
+
 # 用于设置进程级环境变量，让应用在测试期间读取到测试专用配置。
 import os
+
 # 用于修改模块搜索路径，以及查询当前已经导入的模块。
 import sys
+
 # 用于创建本次测试进程独享、退出后可自动删除的临时目录。
 import tempfile
+
 # 面向对象的路径工具，比直接拼接字符串更安全，也更易跨平台使用。
 from pathlib import Path
 
 # pytest 本体：本文件会使用 fixture 装饰器、配置类型和退出钩子。
 import pytest
-
 
 # ``__file__`` 是当前 conftest.py 的路径：
 #   Path(__file__).parent        -> backend/tests

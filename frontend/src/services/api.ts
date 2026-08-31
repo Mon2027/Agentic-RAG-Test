@@ -70,7 +70,7 @@ class APIClient {
             const event = JSON.parse(data) as SSEEvent
             onEvent?.(event)
             yield event
-          } catch (e) {
+          } catch {
             console.error('Failed to parse SSE event:', data)
           }
         }

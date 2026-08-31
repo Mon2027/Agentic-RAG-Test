@@ -295,7 +295,7 @@ class TestRetriever:
 
     def test_explanation_query_uses_narrative_rewrites(self):
         """原因/阶段问题必须使用叙述性改写，不能退化为纯财务指标查询。"""
-        from app.rag.retriever import Retriever, TABLE_QUERY_REWRITE_VARIANT
+        from app.rag.retriever import TABLE_QUERY_REWRITE_VARIANT, Retriever
 
         retriever = Retriever(vector_store=MagicMock(), query_rewrite_max_variants=3)
         query = "公司利润为什么承压，项目处于什么阶段？"

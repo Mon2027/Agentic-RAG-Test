@@ -37,7 +37,6 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
-
 BUSINESS_TOOL_BOUNDARY_PROMPT = """## 业务工具边界
 
 只允许调用“当前可用工具”中列出的工具；不得根据历史提示、示例或常识构造未提供的工具调用。

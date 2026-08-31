@@ -1,8 +1,6 @@
 """Tests for vector store."""
 
-import pytest
 from unittest.mock import MagicMock, patch
-from pathlib import Path
 
 
 class TestVectorStore:
@@ -45,8 +43,8 @@ class TestVectorStore:
         mock_embedding.embed_documents.return_value = [[0.1, 0.2], [0.3, 0.4]]
         mock_get_embedding.return_value = mock_embedding
 
-        from app.rag.vectorstore import VectorStore
         from app.rag.document_processor import DocumentChunk
+        from app.rag.vectorstore import VectorStore
 
         vs = VectorStore()
         chunks = [
@@ -253,10 +251,9 @@ class TestGetVectorStore:
         mock_embedding = MagicMock()
         mock_get_embedding.return_value = mock_embedding
 
-        from app.rag.vectorstore import get_vector_store, VectorStore
-
         # Reset singleton
         import app.rag.vectorstore as vs_module
+        from app.rag.vectorstore import get_vector_store
         vs_module._vector_store = None
 
         vs1 = get_vector_store()

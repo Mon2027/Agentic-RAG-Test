@@ -1,6 +1,5 @@
 """Tests for embedding model."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 
@@ -77,7 +76,7 @@ class TestGetEmbeddingModel:
 
     def test_get_embedding_model_cached(self):
         """Test that get_embedding_model returns cached instance."""
-        from app.rag.embeddings import get_embedding_model, EmbeddingModel
+        from app.rag.embeddings import get_embedding_model
 
         # Clear cache first
         get_embedding_model.cache_clear()

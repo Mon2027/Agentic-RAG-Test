@@ -12,8 +12,9 @@
 正文日期候选和用户截止日，不能把不可追溯摘要当作精确日期或行情数字的唯一证据。
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestTavilySearchResult:

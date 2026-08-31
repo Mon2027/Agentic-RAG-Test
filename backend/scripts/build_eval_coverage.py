@@ -13,7 +13,6 @@ from typing import Any
 import chromadb
 from chromadb.api.shared_system_client import SharedSystemClient
 
-
 SIGNALS: dict[str, tuple[str, ...]] = {
     "financial": (
         "营业收入",

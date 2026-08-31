@@ -6,8 +6,8 @@ import logging
 from pathlib import Path
 
 from app.evaluation.rag_evaluator import (
-    RAGEvaluator,
     EvaluationSample,
+    RAGEvaluator,
     create_evaluation_dataset_from_reports,
     create_sample_evaluation_dataset,
 )
