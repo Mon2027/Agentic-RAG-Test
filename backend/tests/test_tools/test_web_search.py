@@ -8,6 +8,9 @@
 * 行情测试验证带截止日查询会补充“历史行情/收盘价/交易日期”语义，并在首轮缺少
   带日期历史表时进行一次更窄的补查。
 
+阅读顺序建议：先看响应模型，再看底层 HTTP 调用，最后看两个 ``@tool`` 包装后的
+搜索入口。每层只替换它的直接依赖，便于分辨失败发生在哪一层。
+
 核心安全契约是：即使 Tavily 返回 AI 摘要，工具也必须保留直接 URL、发布日期、
 正文日期候选和用户截止日，不能把不可追溯摘要当作精确日期或行情数字的唯一证据。
 """
@@ -59,6 +62,7 @@ class TestTavilySearchResponse:
             answer="AI generated answer",
         )
 
+        # results 是 TavilySearchResult 对象组成的列表；answer 则是独立的可选摘要。
         assert response.query == "test query"
         assert len(response.results) == 1
         assert response.answer == "AI generated answer"
@@ -89,6 +93,7 @@ class TestTavilySearch:
         mock_get_settings.return_value = mock_settings
 
         # mock_response 模拟 httpx.Response 的 json() 与 raise_for_status() 接口。
+        # json.return_value 表示调用 json() 后得到的字典，而不是 json 属性本身。
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "results": [
@@ -98,8 +103,9 @@ class TestTavilySearch:
         }
         mock_response.raise_for_status = MagicMock()
 
-        # 生产代码使用 ``with httpx.Client(...) as client``，因此 mock 必须实现
-        # __enter__/__exit__，并让 post 返回上面的响应对象。
+        # 生产代码使用 ``with httpx.Client(...) as client``：with 块内的 client
+        # 实际取自 __enter__() 的返回值，故显式设为 mock_http_client 本身。
+        # __exit__ 返回 False 表示若块内发生异常，应继续向外传播。
         mock_http_client = MagicMock()
         mock_http_client.__enter__ = MagicMock(return_value=mock_http_client)
         mock_http_client.__exit__ = MagicMock(return_value=False)
@@ -114,6 +120,7 @@ class TestTavilySearch:
         assert "results" in result
         assert len(result["results"]) == 1
         assert result["answer"] == "Test answer"
+        # 这里主要核对返回值；没有断言请求地址或请求体中的具体字段。
 
     @patch("app.tools.web_search.get_settings")
     def test_tavily_search_no_api_key(self, mock_get_settings):
@@ -129,6 +136,7 @@ class TestTavilySearch:
 
         from app.tools.web_search import _tavily_search
 
+        # pytest.raises 只有捕获到指定异常且错误文本匹配时才通过。
         with pytest.raises(ValueError, match="TAVILY_API_KEY not configured"):
             _tavily_search("test query")
 
@@ -164,7 +172,8 @@ class TestWebSearch:
 
         from app.tools.web_search import web_search
 
-        # @tool 包装后使用 invoke(dict) 调用，字典会经过工具参数 schema 校验。
+        # @tool 装饰后 web_search 是 LangChain 工具对象；invoke(dict) 会按
+        # 工具参数 schema 传入 query，随后执行被包装的搜索函数。
         result = web_search.invoke({"query": "what is AI"})
 
         # AI 摘要必须明确标成未核验，并与标题、URL、日期等直接来源并存。
@@ -189,18 +198,21 @@ class TestWebSearch:
 
         result = web_search.invoke({"query": "nonexistent topic xyz123"})
 
+        # 空列表加空摘要应走“未找到”分支，而不是尝试格式化不存在的来源。
         assert "未找到" in result
 
     @patch("app.tools.web_search._tavily_search")
     def test_web_search_with_error(self, mock_tavily):
         """配置异常应被工具捕获并转成 Agent 可读文本，而不是向上抛出。"""
-        # side_effect 让内部调用稳定抛出与缺少 API Key 相同的配置错误。
+        # side_effect 设为异常后，每次调用 mock 都会抛出该异常；这样可以
+        # 直接测试 web_search 的异常处理，无须触发真实的配置读取。
         mock_tavily.side_effect = ValueError("API key not configured")
 
         from app.tools.web_search import web_search
 
         result = web_search.invoke({"query": "test query"})
 
+        # 工具把配置错误转为字符串，Agent 才能收到可展示的错误说明。
         assert "配置错误" in result or "API key" in result
 
 
@@ -219,6 +231,7 @@ class TestWebSearchQuick:
 
         result = web_search_quick.invoke({"query": "capital of France"})
 
+        # “快速”模式仍可使用搜索服务给出的摘要；本用例未验证来源记录。
         assert "Paris" in result
 
     @patch("app.tools.web_search._tavily_search")
@@ -240,6 +253,7 @@ class TestWebSearchQuick:
 
         result = web_search_quick.invoke({"query": "capital of France"})
 
+        # answer 为 None 时仍有 results，输出应从来源正文取得信息并保留 URL。
         assert "Paris" in result
         assert "URL：https://example.com" in result
 
@@ -247,7 +261,7 @@ class TestWebSearchQuick:
     def test_quick_search_keeps_url_and_dates_when_answer_exists(self, mock_tavily):
         """即使已有摘要，快速查询也不能丢失 URL、发布日期和正文日期候选。"""
         # published_date 是来源元数据；content 内的 2026-08-07 只是“日期候选”，
-        # 两者语义不同，格式化输出必须分别展示。
+        # 两者语义不同，格式化输出必须分别展示。摘要 14.20 也不能代替来源证据。
         mock_tavily.return_value = {
             "results": [{
                 "title": "Historical quote",
@@ -281,7 +295,8 @@ class TestWebSearchQuick:
 
         web_search.invoke({"query": "奥普特截至2026年8月8日最新股价"})
 
-        # 从 mock 调用历史读取真正发给 Tavily 的 effective query，而非用户原始 query。
+        # call_args_list[0] 是第一次调用记录，args[0] 是第一个位置参数。
+        # 从中读取真正发给 Tavily 的 effective query，而非用户原始 query。
         sent_query = mock_tavily.call_args_list[0].args[0]
         assert "2026年8月8日" in sent_query
         assert "历史行情" in sent_query
@@ -292,6 +307,7 @@ class TestWebSearchQuick:
     def test_finance_search_retries_for_dated_history_table(self, mock_tavily):
         """首轮缺少带日期行情表时，应进行一次更窄的历史数据补查。"""
         # side_effect 列表让连续两次调用依次返回“实时快照”和“历史行情表”。
+        # 首轮只有当前报价，没有带日期的收盘价表格，所以应触发一次补查。
         mock_tavily.side_effect = [
             {
                 "results": [{
@@ -323,12 +339,14 @@ class TestWebSearchQuick:
             "query": "奥普特截至2026年8月8日最新股价"
         })
 
-        # 只允许一次补查，避免搜索循环失控和额外 API 成本。
+        # 一次初查加一次补查，共两次；调用次数也防止意外重复请求。
         assert mock_tavily.call_count == 2
         retry_query = mock_tavily.call_args_list[1].args[0]
+        # 截止日 2026-08-08 是周末，补查关键词定位到之前的周五 2026-08-07。
         assert "2026年8月7日" in retry_query
         assert "股票历史数据表" in retry_query
-        # 合并结果时补查证据优先；同时按 URL 去重，因此历史表来源排在实时快照前。
+        # index 比较两个 URL 在输出字符串中的位置；历史表应先于实时快照。
+        # 本用例没有提供重复 URL，因此不直接检验去重功能。
         assert result.index("https://example.com/history") < result.index(
             "https://example.com/live"
         )
@@ -345,6 +363,7 @@ class TestWebSearchQuick:
 
         result = web_search_quick.invoke({"query": "nonexistent"})
 
+        # 快速搜索与完整搜索都需要对完全空的响应给出明确提示。
         assert "未找到" in result
 
 

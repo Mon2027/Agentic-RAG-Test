@@ -10,9 +10,16 @@
 测试还覆盖来源 URL、页码引用、送样年份、周末交易日、历史行情冲突等答案护栏。
 大量用例直接构造 LangChain ``ModelRequest``、``ModelResponse``、``ToolMessage``
 和 ``ToolCallRequest``，因此很适合学习 Agent 中间件如何观察和改写消息状态。
+
+学习时可以按“请求清洗 → 答案修复 → 工具执行拦截 → 检索预算 → 循环熔断”阅读。
+每个用例通常先构造请求和模拟处理器，再调用中间件，最后检查返回消息或转发参数。
+这里直接调用中间件方法，不经过 HTTP 接口，也不会请求真实模型或搜索服务。
 """
 
+# SimpleNamespace 可用 obj.name 的形式读取属性，适合制作只需要少量字段的替身。
 from types import SimpleNamespace
+
+# MagicMock 模拟普通函数；AsyncMock 模拟需要 await 的异步函数，并记录等待参数。
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -22,6 +29,9 @@ from deepagents.middleware.filesystem import (
 )
 from langchain.agents.middleware.todo import WRITE_TODOS_SYSTEM_PROMPT
 from langchain.agents.middleware.types import ModelRequest, ModelResponse
+
+# HumanMessage 表示用户提问，SystemMessage 表示系统提示；AIMessage 表示模型输出，
+# ToolMessage 表示工具执行结果，其 tool_call_id 用于关联此前的模型工具调用。
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
@@ -34,6 +44,7 @@ from app.agents.tool_boundary import (
     BusinessToolBoundaryMiddleware,
 )
 
+# frozenset 是不可变集合：工具名称不能重复，成员判断不受排列顺序影响。
 DISABLED_TOOLS = frozenset({"write_todos", "ls", "read_file", "execute"})
 
 
@@ -43,6 +54,7 @@ def _make_model_request(
     tools=None,
 ) -> ModelRequest:
     """构造同时含业务提示和待清理注入提示的标准模型请求。"""
+    # 签名中的 * 表示 messages/tools 必须以关键字传入，便于读者识别测试意图。
     # 故意混入 Todo、文件系统和执行提示，用于验证中间件只删除被禁能力说明，
     # 同时保留最前面的业务 Agent 原始提示。
     system_message = SystemMessage(
@@ -56,7 +68,9 @@ def _make_model_request(
         ]
     )
     return ModelRequest(
+        # model 只是满足请求结构所需的替身，实际模型调用由用例中的 handler 模拟。
         model=MagicMock(),
+        # 注意：or 会把 None 和空列表都视为假值；tools=[] 也会采用下方默认工具。
         messages=messages or [],
         system_message=system_message,
         # 默认工具同时包含允许和禁用项，并混合对象/dict 两种工具 schema 形态。
@@ -71,6 +85,8 @@ def _make_model_request(
 
 def _visible_tool_names(tools):
     """统一提取对象式与 OpenAI function-dict 式工具定义中的名称。"""
+    # 列表推导式逐个提取名称：对象读 .name，嵌套字典读 function.name。
+    # 这里用于观察“清洗后模型可见的工具”，无需创建真正可执行的工具对象。
     return [
         getattr(tool, "name", tool.get("function", {}).get("name"))
         if isinstance(tool, dict)
@@ -82,11 +98,13 @@ def _visible_tool_names(tools):
 def test_model_boundary_removes_hidden_prompts_and_tool_schemas():
     """模型只能看到业务工具，系统提示中不能残留已禁用能力说明。"""
     middleware = BusinessToolBoundaryMiddleware(DISABLED_TOOLS)
+    # 模型 handler 是中间件的下一步处理器；return_value 模拟它执行后的返回值。
     handler = MagicMock(return_value="model-response")
 
     result = middleware.wrap_model_call(_make_model_request(), handler)
 
     assert result == "model-response"
+    # call_args 是最后一次调用记录，args[0] 是传给 handler 的第一个位置参数。
     # handler 收到的是中间件清洗后的新请求，可从调用参数检查真正的模型视图。
     prepared_request = handler.call_args.args[0]
     prompt = prepared_request.system_message.text
@@ -123,6 +141,7 @@ def test_model_boundary_hides_web_for_financial_rag_question():
     assert "当前可用工具：task" in prepared.system_message.text
 
 
+# pytest 会把列表中的两个问题分别传入 query，生成两个独立测试用例。
 @pytest.mark.parametrize("query", [
     "核实中信海直截至2026年8月8日的最新股价，不要使用历史价格。",
     (
@@ -178,13 +197,16 @@ def test_model_boundary_keeps_web_available_for_direct_definition():
 @pytest.mark.asyncio
 async def test_async_model_boundary_uses_same_sanitized_request():
     """异步模型调用路径必须应用与同步路径相同的提示词和工具清洗。"""
+    # asyncio 标记由 pytest 的异步插件处理，使 async 测试函数能在事件循环中执行。
     middleware = BusinessToolBoundaryMiddleware(DISABLED_TOOLS)
     handler = AsyncMock(return_value="model-response")
 
     result = await middleware.awrap_model_call(_make_model_request(), handler)
 
     assert result == "model-response"
+    # await_args 记录 handler 被 await 时的参数，对应同步 mock 的 call_args。
     prepared_request = handler.await_args.args[0]
+    # 本用例检查提示词清理与对象式工具；完整工具列表由前面的同步用例检查。
     assert FILESYSTEM_SYSTEM_PROMPT not in prepared_request.system_message.text
     assert [tool.name for tool in prepared_request.tools if hasattr(tool, "name")] == [
         "task"
@@ -216,6 +238,7 @@ async def test_async_boundary_restores_task_body_when_answer_is_source_only():
         id="answer-1",
         response_metadata={"model_name": "glm-4.5-air"},
     )
+    # ModelResponse.result 是消息列表；这里构造的列表只有一条待修复的模型回答。
     handler = AsyncMock(return_value=ModelResponse(result=[original_message]))
     middleware = BusinessToolBoundaryMiddleware(DISABLED_TOOLS)
 
@@ -300,6 +323,7 @@ def test_boundary_does_not_duplicate_existing_chart_url():
         MagicMock(return_value=ModelResponse(result=[original])),
     )
 
+    # count 检查 URL 只出现一次；startswith/endswith 检查恢复后的正文和来源位置。
     assert response.result[0].text.count(chart_url) == 1
     assert response.result[0].text.startswith("Chart created successfully")
     assert response.result[0].text.endswith("📊 来源：数据分析")
@@ -307,6 +331,7 @@ def test_boundary_does_not_duplicate_existing_chart_url():
 
 def test_boundary_appends_chart_url_without_replacing_multi_task_synthesis():
     """多任务回答保留主 Agent 综合正文，只补回遗漏的图表 URL。"""
+    # 两个成功 task 结果代表两项子任务，最终回答需要保留模型对它们的综合说明。
     chart_url = "/static/charts/chart_abc12345.png"
     request = _make_model_request(
         messages=[
@@ -495,6 +520,7 @@ def test_boundary_restores_single_rag_task_with_page_citations():
 
 def test_boundary_appends_page_that_directly_supports_specific_date():
     """具体年月事实应追加包含该年月的研报分块页码引用。"""
+    # 两个片段分别支持合作与收购事实；模拟回答故意只引用合作页，制造缺页场景。
     evidence = """搜索结果 (找到 2 个相关片段):
 
 --- 文档片段 1 [来源: a5d7a533-f0be-4bdb-82e3-ffb2badf7253_【奥普特】深度报告.pdf, 第23页, 章节: 合作, 相似度: 0.80] ---
@@ -525,6 +551,7 @@ def test_boundary_appends_page_that_directly_supports_specific_date():
     response = middleware.wrap_model_call(request, handler)
 
     answer = response.result[0].text
+    # 已有引用不能重复，遗漏的收购页应补齐；同时检查数量和具体引用文本。
     assert answer.count("第23页") == 1
     assert answer.count("第21-22页") == 1
     assert "研报《【奥普特】深度报告》第21-22页" in answer
@@ -563,6 +590,7 @@ def test_boundary_does_not_duplicate_specific_date_page_citation():
 
 def test_boundary_does_not_bind_same_date_from_unrelated_page():
     """无关事实页即使出现同一日期，也不能被错误绑定为当前事实引用。"""
+    # 第2页的日期属于股权结构，第23页才描述展会，不能仅凭年月相同选择引用页。
     evidence = """搜索结果 (找到 2 个相关片段):
 
 --- 文档片段 1 [来源: report_奥普特深度报告.pdf, 第2页, 相似度: 0.60] ---
@@ -599,6 +627,7 @@ def test_boundary_does_not_bind_same_date_from_unrelated_page():
 
 def test_boundary_normalizes_declared_textual_tool_call():
     """模型输出的 provider 风格文本工具标记应转换成可见工具的结构化调用。"""
+    # 某些模型将调用写进普通正文；运行框架需要 AIMessage.tool_calls 才能识别调用。
     request = _make_model_request(
         tools=[SimpleNamespace(name="search_reports")],
     )
@@ -620,6 +649,7 @@ def test_boundary_normalizes_declared_textual_tool_call():
     assert normalized.text == ""
     assert len(normalized.tool_calls) == 1
     assert normalized.tool_calls[0]["name"] == "search_reports"
+    # top_k 的文本值 "5" 应解码为整数 5，普通 query/topic 文本则保留为字符串。
     assert normalized.tool_calls[0]["args"] == {
         "query": "奥普特 越疆 战略合作",
         "topic": "embodied_intelligence",
@@ -663,6 +693,7 @@ def test_boundary_normalizes_declared_textual_tool_call_without_arguments():
     assert response.result[0].tool_calls[0]["args"] == {}
 
 
+# 两个反例分别是“工具不可见”和“参数标记残缺”，都应保持为普通文本。
 @pytest.mark.parametrize("content", [
     "<tool_call>execute<arg_key>command</arg_key><arg_value>dir</arg_value></tool_call>",
     "<tool_call>search_reports<arg_key>query</arg_key>缺少参数值</tool_call>",
@@ -747,12 +778,14 @@ def test_runtime_boundary_rejects_disabled_tool_without_calling_backend():
     request = SimpleNamespace(
         tool_call={"name": "read_file", "args": {"file_path": "/sample.csv"}, "id": "call-1"}
     )
+    # 工具 handler 代表实际后端执行；mock 未被调用才说明操作在执行前已被拦截。
     handler = MagicMock()
 
     result = middleware.wrap_tool_call(request, handler)
 
     assert isinstance(result, ToolMessage)
     assert result.status == "error"
+    # 拒绝结果仍要关联原调用 ID，使 Agent 能知道哪次调用失败并继续处理。
     assert result.tool_call_id == "call-1"
     assert "未执行任何操作" in result.text
     handler.assert_not_called()
@@ -801,6 +834,7 @@ async def test_runtime_boundary_allows_web_for_explicit_latest_price_request():
     result = await middleware.awrap_tool_call(request, handler)
 
     assert result is expected
+    # 用户问题有截止日，模型生成的工具 query 却没有；中间件应在转发前补上。
     forwarded = handler.await_args.args[0]
     assert forwarded.tool_call["args"]["query"].endswith("截至2026年8月8日")
 
@@ -810,6 +844,7 @@ async def test_runtime_boundary_allows_web_for_explicit_latest_price_request():
 # 截止日是否为交易日以及结构化历史行情是否与摘要冲突。
 def test_model_boundary_appends_traceable_web_sources_to_final_answer():
     """最终回答不能只写泛化 Web 来源标签，必须追加可追溯 URL。"""
+    # web_result 是模拟工具返回的证据文本，URL 和日期是本测试核对的来源信息。
     web_result = """【Web 证据】
 [来源 1]
 标题：中信海直历史行情
@@ -935,6 +970,7 @@ URL：https://example.com/news/today
 
 def test_weekend_stock_cutoff_uses_previous_weekday_as_trading_date():
     """周六截止日不能被标成交易日，应回退到有行情的最近工作日。"""
+    # 2026-08-08 为周六；下面表格提供前一天收盘证据，而模型回答故意写错交易日。
     web_result = """[来源 1]
 标题：历史行情
 URL：https://example.com/history
@@ -1006,6 +1042,8 @@ URL：https://example.com/history
 
 def test_historical_table_overrides_conflicting_search_summary_price():
     """带日期的历史行情表与搜索摘要冲突时，应以结构化表格价格为准。"""
+    # 同一份模拟输出故意包含两个价格：表格为 120.00，未核验摘要为 118.14。
+    # 修复后既要出现正确价格，也要彻底移除冲突价格，避免保留含糊的双重答案。
     web_result = """[来源 1]
 标题：奥普特历史行情
 URL：https://example.com/history
@@ -1050,6 +1088,7 @@ async def test_runtime_boundary_allows_business_tool():
     result = await middleware.awrap_tool_call(request, handler)
 
     assert result is expected
+    # assert_awaited_once_with 同时检查异步处理器只执行一次且接收指定请求。
     handler.assert_awaited_once_with(request)
 
 
@@ -1061,7 +1100,12 @@ def _tool_result_pair(
     status: str = "error",
     content: str = "validation failed",
 ):
-    """构造一次结构化工具调用及其对应 ToolMessage 结果。"""
+    """构造一次结构化工具调用及其对应 ToolMessage 结果。
+
+    返回两条消息：先由 AIMessage 发起调用，再由 ToolMessage 记录成功或失败。
+    call_id 必须一致，中间件才能把结果与工具名称、调用参数关联起来。
+    默认 status 为 error；构造成功历史时需显式传入 status="success"。
+    """
     return [
         AIMessage(
             content="",
@@ -1087,6 +1131,7 @@ def _completed_rag_searches(count: int = MAX_RAG_SEARCH_CALLS):
     """生成指定次数已完成的 RAG 搜索历史，供预算边界测试复用。"""
     messages = []
     for index in range(count):
+        # extend 把一对消息逐条加入列表；append 会把整个消息对当成一个嵌套列表。
         messages.extend(_tool_result_pair(
             call_id=f"search-{index}",
             tool_name="search_reports",
@@ -1094,6 +1139,7 @@ def _completed_rag_searches(count: int = MAX_RAG_SEARCH_CALLS):
                 "query": f"Avant Robotics 销量 查询 {index}",
                 "topic": "embodied_intelligence",
             },
+            # “没有找到精确销量”是正常查询结果，不等于工具执行失败。
             status="success",
             content="没有找到精确销量",
         ))
@@ -1149,6 +1195,8 @@ def test_runtime_boundary_rejects_rag_tool_after_search_limit():
 
 def test_model_boundary_counts_all_rag_retrieval_tools_toward_limit():
     """预检索工具也占用 RAG 总预算，从而减少后续可用搜索次数。"""
+    # * 在列表内展开辅助函数返回的消息：两次预检索加三次搜索，共五次检索。
+    # search_reports 还未到四次上限，但总检索次数已触及 MAX_RAG_RETRIEVAL_CALLS。
     messages = [
         *_tool_result_pair(
             call_id="relevance-1",
@@ -1186,6 +1234,8 @@ def test_model_boundary_counts_all_rag_retrieval_tools_toward_limit():
 
 def test_runtime_boundary_infers_embodied_topic_for_robotics_query():
     """机器人强特征查询在执行前应自动补充具身智能语料主题。"""
+    # 此处使用真实 ToolCallRequest 数据结构，以便检查 override 创建的请求副本。
+    # tool 是执行对象的替身；state 保存消息状态，runtime 在本用例中无需使用。
     request = ToolCallRequest(
         tool_call={
             "name": "search_reports",
@@ -1206,6 +1256,7 @@ def test_runtime_boundary_infers_embodied_topic_for_robotics_query():
     assert result is expected
     normalized_request = handler.call_args.args[0]
     assert normalized_request.tool_call["args"]["topic"] == "embodied_intelligence"
+    # 转发请求增加 topic，原请求仍没有该字段，证明没有就地改写输入参数。
     assert "topic" not in request.tool_call["args"]
 
 
@@ -1263,8 +1314,9 @@ def test_runtime_boundary_preserves_explicit_rag_topic():
 
 # ------------------------- 循环熔断与 Agent 总预算 -------------------------
 # 熔断签名由“工具名 + 规范化参数 + 错误结果”组成；只有完全相同的失败才累计。
+# 计数来自当前请求的消息历史，不要求失败紧挨着发生；不同 call_id 也可有相同签名。
 def test_model_boundary_stops_before_third_identical_failed_call():
-    """同一工具、参数和错误连续失败两次后，应在第三次前本地熔断。"""
+    """同一工具、参数和错误累计失败两次后，应在第三次前本地熔断。"""
     arguments = {
         "file_id": "sample.csv",
         "analysis_type": "describe",
@@ -1283,6 +1335,7 @@ def test_model_boundary_stops_before_third_identical_failed_call():
     )
 
     assert isinstance(result, AIMessage)
+    # 熔断由中间件直接返回提示消息，因此 handler 不应再调用模型。
     assert "同一工具、参数和错误已重复 2 次" in result.text
     assert "不会继续调用模型或工具" in result.text
     handler.assert_not_called()
@@ -1358,6 +1411,7 @@ def test_model_boundary_does_not_treat_success_as_failed_loop():
 
 def test_model_boundary_stops_at_agent_tool_call_budget():
     """主 Agent 用满 8 次工具调用预算后，不能再请求新工具。"""
+    # 每次参数都不同且全部成功，排除重复失败熔断，仅测试总调用预算。
     messages = []
     for index in range(8):
         messages.extend(_tool_result_pair(

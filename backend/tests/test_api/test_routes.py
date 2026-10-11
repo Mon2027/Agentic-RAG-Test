@@ -32,7 +32,7 @@ def client():
 
 
 class TestHealthEndpoint:
-    """健康检查接口测试。"""
+    """健康检查接口测试（轻量冒烟测试）。"""
 
     def test_health_check(self, client):
         """GET /health 应返回 200、健康状态和版本号。"""
@@ -203,7 +203,7 @@ class TestUploadEndpoint:
         assert "file_id" in data
 
     def test_upload_data_sanitizes_filename(self, client):
-        """服务端必须清理客户端文件名中的路径片段，防止路径穿越。"""
+        """服务端必须清理客户端文件名中的路径片段，防止路径穿越（安全测试）。"""
         csv_content = b"name,age\nAlice,25\nBob,30"
 
         # ``..\unsafe.csv`` 模拟恶意或异常客户端提交的 Windows 风格相对路径。

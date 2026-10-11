@@ -11,6 +11,9 @@ Retriever 重排与上下文组装 → RAG 工具调用。
 
 嵌入模型使用固定 384 维向量的 mock，避免下载模型和依赖网络；Chroma 数据全部
 写入 pytest 的 ``tmp_path``，测试结束后自动清理。
+
+阅读时要区分覆盖范围：PDF 用例单独检查解析器；其余写入/检索用例使用手工构造的
+DocumentChunk，因此本文件没有一条测试把“真实 PDF 解析”一路串到最终检索结果。
 """
 
 import os
@@ -80,8 +83,10 @@ startxref
         # add_documents 可能一次传入任意数量文本，因此用 side_effect 动态生成等量向量。
         # 每个向量 384 维，维度必须在文档和查询两种嵌入中保持一致。
         def embed_documents_side_effect(texts):
+            # side_effect 根据本次传入的文本数动态返回向量，避免固定返回值数量不符。
             return [[0.1] * 384 for _ in range(len(texts))]
         mock.embed_documents.side_effect = embed_documents_side_effect
+        # 查询向量也必须是 384 维，才能与存储向量在同一 Chroma collection 中比较。
         mock.embed_query.return_value = [0.1] * 384
         return mock
 
@@ -96,8 +101,10 @@ startxref
 
         # 极简 PDF 可能因解析器差异提取不到正文，所以允许 0 个分块；
         # 但只要产生分块，就逐条验证正文和可追溯来源字段。
-        assert len(chunks) >= 0  # May be 0 for minimal PDF
+        # 这条断言允许空列表，因此并不能单独证明 PDF 一定成功提取出正文。
+        assert len(chunks) >= 0  # 极简 PDF 在某些解析器环境中可能产生 0 个分块。
         for chunk in chunks:
+            # 只有在产出分块时，这些断言才会执行。
             assert chunk.content
             assert chunk.metadata.get("file_id") == "test_file_id"
             assert chunk.metadata.get("file_name")
@@ -130,8 +137,10 @@ startxref
         count = store.add_documents(chunks)
         assert count == 2
 
-        # 查询阶段会生成查询向量并调用 collection.query；固定向量保证结果确定可用。
+        # 查询阶段会生成查询向量并调用 collection.query；固定向量保证维度一致，
+        # 同时避免测试依赖真实模型的语义表现。
         results = store.similarity_search("人工智能", k=2)
+        # 固定向量只保证可检索，不检验语义排序；此处只要求至少召回一条。
         assert len(results) >= 1
 
     def test_retriever_retrieve_and_relevance(self, mock_embedding_model, tmp_path: Path):
@@ -159,6 +168,7 @@ startxref
         retriever = Retriever(vector_store=store)
         context = retriever.retrieve("营收增长情况")
 
+        # 同时检查原始查询被保留，且上下文中至少包含一个可用分块。
         assert context.query == "营收增长情况"
         assert len(context.results) >= 1
 
@@ -200,6 +210,7 @@ class TestRAGToolsIntegration:
 
                 # LangChain tool 使用 invoke(dict) 调用，而不是直接执行普通 Python 函数。
                 result = search_reports.invoke({"query": "营收增长"})
+                # 此断言只检查工具返回了可见文本；没有核对检索器的具体调用参数。
                 assert "营收增长" in result or "搜索结果" in result
 
     def test_list_available_reports_tool(self, mock_vector_store):
@@ -212,6 +223,7 @@ class TestRAGToolsIntegration:
                 from app.agents.rag_analyst import list_available_reports
 
                 result = list_available_reports.invoke({})
+                # 已索引列表由 mock 提供；允许不同环境中的文件扫描结果影响提示分支。
                 assert "已上传研报" in result or "没有" in result
 
     def test_check_rag_relevance_tool(self, mock_vector_store):
@@ -225,21 +237,23 @@ class TestRAGToolsIntegration:
             from app.agents.rag_analyst import check_rag_relevance
 
             result = check_rag_relevance.invoke({"query": "营收"})
+            # 只验证相关性提示出现；当前测试没有断言返回的具体分数字符串。
             assert "相关" in result
 
 
 class TestRAGEndToEnd:
-    """从分块写入到 Retriever 召回的应用级端到端测试。"""
+    """从分块写入到 Retriever 召回的内部链路测试，不经过 HTTP 接口。"""
 
     def test_pdf_to_retrieval_flow(self, tmp_path: Path):
-        """验证三个分块写入临时向量库后，可以通过自然语言查询召回。"""
+        """验证三个手工构造的分块写入临时向量库后，可以通过查询召回。"""
         from app.rag.document_processor import DocumentChunk
         from app.rag.embeddings import EmbeddingModel
         from app.rag.retriever import Retriever
         from app.rag.vectorstore import VectorStore
 
-        # 某些环境缺少 Chroma 等可选依赖，因此把整段集成流程放入 try；
-        # 出现环境性异常时用 pytest.skip 标记为跳过，而不是误报业务失败。
+        # 整段流程被 try 包围；发生异常时会标记为跳过。
+        # 注意：这里捕获所有 Exception，也可能把实际业务错误当作环境问题跳过；
+        # 阅读测试报告时应检查 skip 原因，不能把跳过当作通过。
         try:
             # 使用 EmbeddingModel 作为 spec：MagicMock 只能访问真实类存在的方法，
             # 能尽早发现测试替身接口与生产接口不一致。
@@ -276,6 +290,7 @@ class TestRAGEndToEnd:
             retriever = Retriever(vector_store=store)
             context = retriever.retrieve("测试内容", top_k=3)
 
+            # 此处只要求能召回至少一个分块，不检验命中次序或具体页码。
             assert len(context.results) >= 1
 
         except Exception as e:
