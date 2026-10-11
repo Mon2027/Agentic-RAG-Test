@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>接口自动化测试学习计划｜研报分析系统</title>
+  <style>
+    :root { color-scheme: light; --ink:#17243a; --muted:#566579; --line:#dbe4ee; --paper:#fff; --canvas:#f5f7fb; --blue:#175cd3; --pale:#eaf2ff; --green:#13795b; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; background:var(--canvas); color:var(--ink); font:15px/1.65 system-ui,-apple-system,"Microsoft YaHei",sans-serif; }
+    a { color:var(--blue); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    .shell { max-width:1120px; margin:auto; padding:28px 20px 64px; }
+    header { padding:38px 42px; color:white; background:linear-gradient(125deg,#152e58,#185fbe); border-radius:20px; box-shadow:0 12px 34px #17365b22; }
+    header h1 { font-size:clamp(28px,4vw,42px); line-height:1.2; margin:0 0 12px; }
+    header p { max-width:780px; margin:0; color:#e1ecff; }
+    .eyebrow { font-size:12px; letter-spacing:.12em; font-weight:800; text-transform:uppercase; color:#a9c9ff; margin-bottom:8px; }
+    .top-grid { display:grid; grid-template-columns:1.5fr 1fr; gap:18px; margin:20px 0; }
+    .card, section { background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:24px; }
+    .card h2, section h2 { font-size:21px; line-height:1.35; margin:0 0 12px; }
+    .card p, section p { margin:8px 0; }
+    .stats { display:flex; align-items:baseline; gap:10px; margin:5px 0 12px; }
+    .stats strong { font-size:34px; line-height:1; color:var(--blue); }
+    .progress-track { height:10px; border-radius:20px; background:#e9eef6; overflow:hidden; }
+    .progress-fill { height:100%; width:0; background:linear-gradient(90deg,#1d69d8,#27a681); transition:width .2s; }
+    .muted { color:var(--muted); }
+    .pill { display:inline-block; padding:3px 10px; border-radius:999px; background:var(--pale); color:#1455af; font-size:12px; font-weight:700; }
+    .done { background:#e6f5ee; color:var(--green); }
+    nav { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0; }
+    nav a { background:white; border:1px solid var(--line); border-radius:999px; padding:7px 13px; font-size:13px; }
+    section { margin-top:18px; scroll-margin-top:14px; }
+    section h2 small { font-size:13px; color:var(--muted); font-weight:500; }
+    .phase-intro { color:var(--muted); margin-bottom:17px !important; }
+    .table-wrap { overflow-x:auto; }
+    table { border-collapse:collapse; width:100%; min-width:800px; }
+    th, td { border-top:1px solid var(--line); padding:13px 11px; text-align:left; vertical-align:top; }
+    th { background:#f7f9fd; color:#42546c; font-size:12px; letter-spacing:.03em; }
+    td:nth-child(1) { width:48px; color:var(--muted); font-weight:700; }
+    td:nth-child(2) { width:245px; }
+    td:nth-child(5), th:nth-child(5) { width:68px; text-align:center; }
+    .file { display:block; font-weight:700; overflow-wrap:anywhere; }
+    .path { display:block; color:var(--muted); font-size:12px; overflow-wrap:anywhere; margin-top:3px; }
+    input[type="checkbox"] { width:18px; height:18px; accent-color:var(--green); cursor:pointer; }
+    .callout { border-left:4px solid var(--blue); background:#f0f6ff; padding:12px 16px; border-radius:0 10px 10px 0; }
+    .weeks { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+    .week { padding:14px; border:1px solid var(--line); border-radius:12px; background:#fbfcfe; }
+    .week b { display:block; margin-bottom:4px; }
+    ol { margin:8px 0; padding-left:22px; }
+    code { background:#edf2f8; border-radius:4px; padding:1px 5px; font-family:Consolas,monospace; font-size:.94em; }
+    .command { display:block; overflow-x:auto; padding:12px 14px; border-radius:9px; background:#132843; color:#f4f7fd; font-family:Consolas,monospace; white-space:pre; }
+    footer { color:var(--muted); font-size:12px; margin-top:22px; }
+    @media (max-width:760px) { .shell{padding:12px 12px 38px} header{padding:28px 24px} .top-grid,.weeks{grid-template-columns:1fr} .card,section{padding:18px} }
+    @media print { body{background:white} header{box-shadow:none} nav,.progress-track{display:none} section,.card{break-inside:avoid} a{color:inherit} }
+  </style>
+</head>
+<body>
+<main class="shell">
+  <header>
+    <div class="eyebrow">REPORT ANALYSIS AGENT · TEST LEARNING PATH</div>
+    <h1>接口自动化测试学习计划</h1>
+    <p>以当前仓库 <code>backend/tests</code> 为范围，按已掌握的接口测试向 RAG、数据分析、智能体和评估逐步深入。每项都有阅读重点和一个可检验的学习产出。</p>
+  </header>
+
+  <div class="top-grid">
+    <div class="card">
+      <h2>学习目标</h2>
+      <p>读完后，能够从一个 HTTP 请求出发，解释请求校验、fixture 隔离、依赖替换、业务处理、持久化和响应断言如何连接，并能为失败场景设计回归测试。</p>
+      <p class="muted">共 23 个核心文件：已读 8 个，待学 15 个。<code>__init__.py</code> 和 <code>fixtures/sample.csv</code> 是辅助文件，不单独占学习序号。</p>
+    </div>
+    <div class="card" aria-live="polite">
+      <h2>学习进度</h2>
+      <div class="stats"><strong id="progress-count">8 / 23</strong><span class="muted">个文件</span></div>
+      <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+      <p class="muted">前 8 项依据你的学习记录预先勾选。后续勾选会尽量保存在当前浏览器。</p>
+    </div>
+  </div>
+
+  <nav aria-label="学习阶段">
+    <a href="#method">学习方法</a><a href="#phase0">01 已学基础</a><a href="#phase1">02 RAG 主链</a><a href="#phase2">03 数据与智能体</a><a href="#phase3">04 进阶质量评估</a><a href="#pace">时间安排</a>
+  </nav>
+
+  <section id="method">
+    <h2>每个文件怎么学</h2>
+    <ol>
+      <li>先看文件开头、fixture 和测试类名称，画出被测对象与外部依赖。</li>
+      <li>挑一个成功用例、一个失败用例，写下 <b>输入 → mock/临时数据 → 执行 → 断言</b>。</li>
+      <li>打开对应的 <code>backend/app</code> 生产代码，找到断言所覆盖的分支；分清测试替身和真实组件。</li>
+      <li>从 <code>backend</code> 目录单独运行该测试文件。最后用两三句话说明它防止了什么回归。</li>
+    </ol>
+    <p class="callout"><b>阅读重点：</b>优先理解断言证明了什么，再研究 mock 的细节。长文件先按测试类或场景分两次阅读，不必一次读完所有用例。</p>
+    <span class="command">.\.venv\Scripts\python.exe -m pytest tests/test_rag/test_embeddings.py -q</span>
+    <p class="muted">上面是下一份文件的运行示例；读其他文件时替换路径即可。</p>
+  </section>
+
+  <section id="phase0">
+    <h2>阶段 0 · 已学基础 <small>已完成，建议回顾 1 次</small></h2>
+    <p class="phase-intro">这 8 个文件是你在当前对话中明确提到已看过的内容。可用“学习产出”一栏检查自己是否真正掌握。</p>
+    <div class="table-wrap"><table><thead><tr><th>顺序</th><th>文件</th><th>学习重点</th><th>学习产出</th><th>完成</th></tr></thead><tbody>
+      <tr><td>01</td><td><a class="file" href="../backend/tests/conftest.py">conftest.py</a><span class="path">backend/tests</span></td><td>fixture 作用域、测试环境变量、临时数据目录、pytest 清理钩子。</td><td>解释为什么环境变量必须在应用导入前设置。</td><td><input data-progress="01" type="checkbox" checked aria-label="完成 conftest.py"></td></tr>
+      <tr><td>02</td><td><a class="file" href="../backend/tests/test_api/test_routes.py">test_routes.py</a><span class="path">backend/tests/test_api</span></td><td><code>TestClient</code> 发请求、<code>patch</code> 替换依赖、状态码和响应体断言。</td><td>选一个路由，写出 Arrange / Act / Assert。</td><td><input data-progress="02" type="checkbox" checked aria-label="完成 test_routes.py"></td></tr>
+      <tr><td>03</td><td><a class="file" href="../backend/tests/test_api/test_phase2_core_api.py">test_phase2_core_api.py</a><span class="path">backend/tests/test_api</span></td><td>临时目录、<code>monkeypatch</code>、<code>yield fixture</code>、上传、SSE 与失败后状态。</td><td>说明一次上传失败要检查哪些磁盘和内存副作用。</td><td><input data-progress="03" type="checkbox" checked aria-label="完成 test_phase2_core_api.py"></td></tr>
+      <tr><td>04</td><td><a class="file" href="../backend/tests/test_api/test_phase2_file_id_validation.py">test_phase2_file_id_validation.py</a><span class="path">backend/tests/test_api</span></td><td>参数化、动态 HTTP 方法、UUID 路径校验和“业务逻辑未执行”的断言。</td><td>解释为什么非法 <code>*</code> 返回 422，且 mock 未被调用。</td><td><input data-progress="04" type="checkbox" checked aria-label="完成 test_phase2_file_id_validation.py"></td></tr>
+      <tr><td>05</td><td><a class="file" href="../backend/tests/test_api/test_phase2_file_id_risk_evidence.py">test_phase2_file_id_risk_evidence.py</a><span class="path">backend/tests/test_api</span></td><td>哨兵文件、结构化缺陷证据、请求被拒绝后的文件与向量库检查。</td><td>说清这个测试比单独检查状态码多证明了什么。</td><td><input data-progress="05" type="checkbox" checked aria-label="完成 test_phase2_file_id_risk_evidence.py"></td></tr>
+      <tr><td>06</td><td><a class="file" href="../backend/tests/test_integration/test_api_e2e.py">test_api_e2e.py</a><span class="path">backend/tests/test_integration</span></td><td>跨接口请求流程、上传与会话管理、应用级 E2E 的测试边界。</td><td>画出 CSV 上传到查询，或一次连续对话的请求顺序。</td><td><input data-progress="06" type="checkbox" checked aria-label="完成 test_api_e2e.py"></td></tr>
+      <tr><td>07</td><td><a class="file" href="../backend/tests/test_config.py">test_config.py</a><span class="path">backend/tests</span></td><td><code>delenv</code>、<code>setenv</code>、<code>Settings</code> 默认值和缓存。</td><td>解释为何测试环境变量会自动恢复，以及 <code>is</code> 断言的意义。</td><td><input data-progress="07" type="checkbox" checked aria-label="完成 test_config.py"></td></tr>
+      <tr><td>08</td><td><a class="file" href="../backend/tests/test_rag/test_document_processor.py">test_document_processor.py</a><span class="path">backend/tests/test_rag</span></td><td>PDF 文本清洗、跨页分块、表格转 Markdown、来源元数据。(拟造文档)</td><td>用一张图表示“页面 → 文本/表格分块 → 元数据”。</td><td><input data-progress="08" type="checkbox" checked aria-label="完成 test_document_processor.py"></td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section id="phase1">
+    <h2>阶段 1 · RAG 主链 <small>最高优先级 · 建议 6–8 次学习</small></h2>
+    <p class="phase-intro">沿 PDF 上传后的处理路径学习：生成向量、写入索引、替换旧索引、检索、调用 RAG 工具，最后跑通集成流程。</p>
+    <div class="table-wrap"><table><thead><tr><th>顺序</th><th>文件</th><th>学习重点</th><th>学习产出</th><th>完成</th></tr></thead><tbody>
+      <tr><td>09</td><td><a class="file" href="../backend/tests/test_rag/test_embeddings.py">test_embeddings.py</a><span class="path">backend/tests/test_rag</span></td><td>查询与文档的向量化、空输入、模型实例缓存；留意测试如何替换模型。(模型名、参数、实例复用)</td><td>说明为什么自动化测试不能依赖临时下载真实模型。</td><td><input data-progress="09" type="checkbox" aria-label="完成 test_embeddings.py"></td></tr>
+      <tr><td>10</td><td><a class="file" href="../backend/tests/test_rag/test_vectorstore.py">test_vectorstore.py</a><span class="path">backend/tests/test_rag</span></td><td>新增、相似度检索、关键词检索、过滤、按文件删除与列表。(嵌套 Mock)</td><td>为“上传 → 检索 → 删除”写出各步应检查的存储契约。</td><td><input data-progress="10" type="checkbox" aria-label="完成 test_vectorstore.py"></td></tr>
+      <tr><td>11</td><td><a class="file" href="../backend/tests/test_rag/test_vectorstore_replacement.py">test_vectorstore_replacement.py</a><span class="path">backend/tests/test_rag</span></td><td>重建索引时的空分块、向量化失败、写入失败和回滚。(在中途某一步失败后，处理结果是否正确)</td><td>画“旧索引 → 尝试替换 → 成功/失败”的状态表；对照已学的重建 API 用例。</td><td><input data-progress="11" type="checkbox" aria-label="完成 test_vectorstore_replacement.py"></td></tr>
+      <tr><td>12</td><td><a class="file" href="../backend/tests/test_rag/test_retriever.py">test_retriever.py</a><span class="path">backend/tests/test_rag · 长文件</span></td><td>先读结果格式、基础召回、分数阈值和文件/主题过滤；再读查询改写、混合检索与重排。(断言参数、字段、结果关键词)</td><td>选一个问题，解释为什么某条结果进入前五且带有正确页码。建议分 2–3 次读。</td><td><input data-progress="12" type="checkbox" aria-label="完成 test_retriever.py"></td></tr>
+      <tr><td>13</td><td><a class="file" href="../backend/tests/test_rag/test_rag_analyst.py">test_rag_analyst.py</a><span class="path">backend/tests/test_rag</span></td><td>搜索报告、列出可用报告、判断相关性，以及工具参数如何传给检索器。(使用 func.invoke 调用 @tool (工具)装饰的 func 函数，断言返回结果的长度或关键词)</td><td>说明主智能体调用工具时，测试如何证明参数没有丢失。</td><td><input data-progress="13" type="checkbox" aria-label="完成 test_rag_analyst.py"></td></tr>
+      <tr><td>14</td><td><a class="file" href="../backend/tests/test_integration/test_rag_pipeline.py">test_rag_pipeline.py</a><span class="path">backend/tests/test_integration</span></td><td>PDF 解析、索引、检索和工具的集成；辨认真实组件与 mock 的边界。(在其他函数中传入 @pytest.fixture (夹具)装饰的 func 以调用函数 func 得到 Mock 掉的配置)</td><td>画出 PDF 到检索结果的链路，指出每个测试替身所在位置。</td><td><input data-progress="14" type="checkbox" aria-label="完成 test_rag_pipeline.py"></td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section id="phase2">
+    <h2>阶段 2 · 数据分析与主智能体 <small>高优先级 · 建议 4–5 次学习</small></h2>
+    <p class="phase-intro">这部分对应 CSV/Excel 上传之后的分析能力，以及聊天接口调用的主智能体和外部搜索工具。</p>
+    <div class="table-wrap"><table><thead><tr><th>顺序</th><th>文件</th><th>学习重点</th><th>学习产出</th><th>完成</th></tr></thead><tbody>
+      <tr><td>15</td><td><a class="file" href="../backend/tests/test_agents/test_data_analyst.py">test_data_analyst.py</a><span class="path">backend/tests/test_agents</span></td><td>CSV 读取、统计分析、参数校验和图表生成；观察文件与配置如何 mock。(拟造数据，指定路径，断言关键词(图表成功生成、特殊数据点标识，断言工具是否在调用名单内)</td><td>设计一个无文件或非法分析类型的失败断言。</td><td><input data-progress="15" type="checkbox" aria-label="完成 test_data_analyst.py"></td></tr>
+      <tr><td>16</td><td><a class="file" href="../backend/tests/test_integration/test_data_analysis_pipeline.py">test_data_analysis_pipeline.py</a><span class="path">backend/tests/test_integration</span></td><td>从测试 CSV 到摘要、相关性、趋势与多种图表的组合流程。(传入 @pytest.fixture 装饰的 tmp_path 函数，拟造数据并指定路径。断言工具能找到拟造数据，处理前返回数据内容，处理后返回关键标识)</td><td>解释单个工具单元测试与数据分析集成测试的覆盖范围差异。</td><td><input data-progress="16" type="checkbox" aria-label="完成 test_data_analysis_pipeline.py"></td></tr>
+      <tr><td>17</td><td><a class="file" href="../backend/tests/test_agents/test_main_agent.py">test_main_agent.py</a><span class="path">backend/tests/test_agents</span></td><td>主智能体提示词、工具和子智能体配置、创建流程与单例复用。(主智能体的依赖组装和扩展参数测试；默认配置应正确创建模型、业务工具和 DeepAgents；断言连续调用应返回同一实例)</td><td>从 <code>/chat</code> 出发，追踪 <code>get_main_agent</code> 会选择哪些能力。</td><td><input data-progress="17" type="checkbox" aria-label="完成 test_main_agent.py"></td></tr>
+      <tr><td>18</td><td><a class="file" href="../backend/tests/test_tools/test_web_search.py">test_web_search.py</a><span class="path">backend/tests/test_tools</span></td><td>外部搜索结果封装、无密钥、无结果、异常、重试与来源字段。</td><td>说明如何用 mock 测试外部 API，而不真正调用搜索服务。</td><td><input data-progress="18" type="checkbox" aria-label="完成 test_web_search.py"></td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section id="phase3">
+    <h2>阶段 3 · 工具边界与效果评估 <small>进阶专题 · 建议 5–7 次学习</small></h2>
+    <p class="phase-intro">掌握主流程后再看：它们更关心智能体能否按规则调用工具、留下可核查的证据，以及结果如何批量评估。</p>
+    <div class="table-wrap"><table><thead><tr><th>顺序</th><th>文件</th><th>学习重点</th><th>学习产出</th><th>完成</th></tr></thead><tbody>
+      <tr><td>19</td><td><a class="file" href="../backend/tests/test_agents/test_tool_boundary.py">test_tool_boundary.py</a><span class="path">backend/tests/test_agents · 长文件</span></td><td>模型可见工具、运行时拦截、来源校验、循环和调用预算。按主题分段阅读。(1. 构造用户问题与联网搜索/RAG检索结果；2. 模拟模型回答；3. 调用中间件并检查结果，按规则修改回答；4. 断言负责检查修改是否正确)</td><td>各选一个“允许工具”和“拒绝工具”的用例，解释边界判定条件。</td><td><input data-progress="19" type="checkbox" aria-label="完成 test_tool_boundary.py"></td></tr>
+      <tr><td>20</td><td><a class="file" href="../backend/tests/test_evaluation/test_rag_evaluator.py">test_rag_evaluator.py</a><span class="path">backend/tests/test_evaluation</span></td><td>文档排序、证据页召回、术语覆盖和数据集样本。(1. 固定检索器返回的结果；2. 准备人工标注：相关文档、证据页、关键词或事实组；3. 调用评估器；4. 断言结果(字段下的内容)是否符合预期)</td><td>区分“找到正确报告”和“找到能支持答案的具体页面”。</td><td><input data-progress="20" type="checkbox" aria-label="完成 test_rag_evaluator.py"></td></tr>
+      <tr><td>21</td><td><a class="file" href="../backend/tests/test_evaluation/test_agent_route_collector.py">test_agent_route_collector.py</a><span class="path">backend/tests/test_evaluation</span></td><td>异步流事件采集、工具调用顺序、失败时的部分轨迹和预算限制。</td><td>按时间顺序写出一次工具调用轨迹应记录哪些字段。</td><td><input data-progress="21" type="checkbox" aria-label="完成 test_agent_route_collector.py"></td></tr>
+      <tr><td>22</td><td><a class="file" href="../backend/tests/test_evaluation/test_agent_route_evaluator.py">test_agent_route_evaluator.py</a><span class="path">backend/tests/test_evaluation</span></td><td>路由评分、错误工具或顺序、重复运行稳定性与配额异常。(1. 准备期望规则；2. 构造调用轨迹，或让替身 Agent 产出事件；3. 评估器逐项检查；4. 断言评分、统计结果和批次状态)</td><td>解释一个智能体即使回答正确，仍可能因错误工具路径而失分。</td><td><input data-progress="22" type="checkbox" aria-label="完成 test_agent_route_evaluator.py"></td></tr>
+      <tr><td>23</td><td><a class="file" href="../backend/tests/test_evaluation/test_run_agent_route_evaluation.py">test_run_agent_route_evaluation.py</a><span class="path">backend/tests/test_evaluation</span></td><td>评估脚本保存图表产物及临时文件清理的先后顺序。</td><td>说明为什么需要在清理临时上传目录之前保留结果产物。</td><td><input data-progress="23" type="checkbox" aria-label="完成 test_run_agent_route_evaluation.py"></td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section id="pace">
+    <h2>建议节奏与完成标准</h2>
+    <div class="weeks">
+      <div class="week"><b>回顾日</b>复盘 01–08。任选一个上传用例，画出从 HTTP 到断言的路径。</div>
+      <div class="week"><b>第 1 周</b>完成 09–11；开始 12。重点掌握索引写入与失败回滚。</div>
+      <div class="week"><b>第 2 周</b>完成 12–14；再读 15–16。连接检索链与数据分析链。</div>
+      <div class="week"><b>第 3–4 周</b>完成 17–23。长文件按主题拆分，最后做一次端到端复盘。</div>
+    </div>
+    <p><b>每次 60–90 分钟：</b>读测试 30 分钟 → 对照实现 20 分钟 → 跑测试并写笔记 20 分钟。<code>test_retriever.py</code> 和 <code>test_tool_boundary.py</code> 各预留 2–3 次。</p>
+    <p class="callout"><b>最终验收：</b>不看代码，讲清“上传 PDF → 后台解析 → 向量库 → 检索 → 智能体 → HTTP/SSE 响应”的链路；再为其中一个失败分支提出一条可运行的回归测试。</p>
+  </section>
+
+  <footer>依据 2026-10-01 的仓库文件清单与本次对话中的已读记录整理。勾选状态仅保存在本地浏览器，不修改仓库文件。</footer>
+</main>
+<script>
+  (() => {
+    const boxes = [...document.querySelectorAll('input[data-progress]')];
+    const key = 'report-analysis-agent-interface-study-v1';
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) || 'null');
+      if (saved && typeof saved === 'object') boxes.forEach(box => {
+        if (Object.hasOwn(saved, box.dataset.progress)) box.checked = Boolean(saved[box.dataset.progress]);
+      });
+    } catch (_) { /* 某些本地文件预览环境可能禁用存储，勾选仍可在当前页面使用。 */ }
+    const update = () => {
+      const count = boxes.filter(box => box.checked).length;
+      document.getElementById('progress-count').textContent = `${count} / ${boxes.length}`;
+      document.getElementById('progress-fill').style.width = `${count / boxes.length * 100}%`;
+      try { localStorage.setItem(key, JSON.stringify(Object.fromEntries(boxes.map(box => [box.dataset.progress, box.checked])))); } catch (_) {}
+    };
+    boxes.forEach(box => box.addEventListener('change', update));
+    update();
+  })();
+</script>
+</body>
+</html>

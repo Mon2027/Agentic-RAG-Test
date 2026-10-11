@@ -10,6 +10,8 @@
 * 折线图、柱状图的生成结果和全量数据覆盖说明。
 
 每个涉及文件的用例都使用临时目录并 patch ``get_settings``，不会读取用户上传数据。
+阅读时先看临时 CSV 如何建立，再看 ``invoke`` 的输入和返回文本断言；
+其中部分用例只检查输出包含关键字，不等同于验证每个统计数值都正确。
 """
 
 import tempfile
@@ -42,6 +44,7 @@ class TestReadCSVFile:
         # LangChain tool 的标准调用方式是 invoke，并用字典匹配参数 schema。
         result = read_csv_file.invoke({"file_id": "nonexistent"})
 
+        # 工具把找不到文件转换为文本结果；两种措辞都代表同一失败分支。
         assert "Error" in result or "未找到" in result
 
     @patch("app.agents.data_analyst.get_settings")
@@ -64,6 +67,7 @@ class TestReadCSVFile:
             # 文件名遵循“file_id_原文件名”规则，工具通过 test123 定位它。
             result = read_csv_file.invoke({"file_id": "test123"})
 
+            # 同时检查预览可见、总行数以及“已展示全部行”的标识。
             assert "Alice" in result or "name" in result
             assert "3" in result  # 验证总行数，而不只验证预览中出现了姓名。
             assert "Complete data (all rows)" in result
@@ -81,6 +85,7 @@ class TestReadCSVFile:
 
             result = read_csv_file.invoke({"file_id": "test123"})
 
+            # 大表只展示前 5 行；提示文字要阻止上层 Agent 把预览当作全量数据。
             assert "Preview (first 5 rows only" in result
             assert "do not use this preview to calculate full-table" in result
             # 值 20 位于最后一行，不应泄漏到“前 5 行”预览片段中。
@@ -109,6 +114,7 @@ class TestAnalyzeData:
                 "analysis_type": "describe"
             })
 
+            # 当前断言仅检查描述统计的标识文字，未逐一核对均值等具体数值。
             assert "Statistics" in result or "mean" in result.lower() or "统计" in result
 
     @patch("app.agents.data_analyst.get_settings")
@@ -131,7 +137,8 @@ class TestAnalyzeData:
                 "analysis_type": "summary"
             })
 
-            assert "3" in result  # row count
+            # 输入是 3 行 2 列；这里检查输出包含这些数值，未限定它们所在字段。
+            assert "3" in result  # 行数。
             assert "2" in result or "column" in result.lower()
 
     @patch("app.agents.data_analyst.get_settings")
@@ -155,6 +162,7 @@ class TestAnalyzeData:
                 "analysis_type": "correlation"
             })
 
+            # y=2x 让相关系数可预测，但当前断言只确认进入了相关分析分支。
             assert "Correlation" in result or "相关" in result
 
     def test_analyze_unknown_type(self):
@@ -165,6 +173,7 @@ class TestAnalyzeData:
             df.to_csv(csv_path, index=False)
 
             with patch("app.agents.data_analyst.get_settings") as mock_settings:
+                # 这里使用 with 形式的 patch；离开代码块后会自动恢复原工厂函数。
                 mock_settings.return_value.uploads_path = Path(tmpdir)
 
                 result = analyze_data.invoke({
@@ -199,6 +208,8 @@ class TestAnalyzeData:
                 "columns": ["city"],
             })
 
+            # 第 6～8 行分别补上三个城市的第二次出现；若只统计前 5 行，
+            # 最高频数会误变成 1，且并列最高类别的文字也会不同。
             # 同时断言数据覆盖声明、最高频数和并列最高频类别。
             assert "all 8 rows" in result
             assert "Beijing" in result
@@ -211,6 +222,7 @@ class TestAnalyzeData:
     def test_analyze_normalizes_string_columns(self, mock_get_settings, columns):
         """JSON 数组字符串和单列字符串都应修复成列数组后再分析。"""
         # 参数化分别模拟模型输出 '["salary"]' 与 'salary' 两种常见偏差。
+        # pytest 会为每个 columns 值生成一次独立测试；mock_get_settings 由 patch 注入。
         with tempfile.TemporaryDirectory() as tmpdir:
             df = pd.DataFrame({
                 "name": ["Alice", "Bob"],
@@ -233,6 +245,7 @@ class TestAnalyzeData:
     def test_analyze_rejects_malformed_json_array_string(self):
         """无法解析的残缺数组字符串必须保留为 ValidationError。"""
         # 兼容修复不能无限宽松，否则模型的坏参数可能被错误解释并执行。
+        # 此处在工具参数校验阶段就应报错，因此无需准备 CSV 或替换 get_settings。
         with pytest.raises(ValidationError):
             analyze_data.invoke({
                 "file_id": "test123",
@@ -247,6 +260,8 @@ class TestAnalyzeData:
         columns_schema = schema["properties"]["columns"]
         variants = columns_schema.get("anyOf", [columns_schema])
 
+        # 可选字段在 Pydantic schema 中可能是 anyOf(数组、null)，
+        # 所以逐个查看候选类型：允许数组，不向模型声明字符串类型。
         assert any(variant.get("type") == "array" for variant in variants)
         assert not any(variant.get("type") == "string" for variant in variants)
 
@@ -277,6 +292,7 @@ class TestCreateChart:
                 "y_column": "y"
             })
 
+            # 当前测试只检查成功提示，没有打开或检查生成的 PNG 文件。
             assert "success" in result.lower() or "created" in result.lower() or "成功" in result
 
     @patch("app.agents.data_analyst.get_settings")
@@ -301,6 +317,7 @@ class TestCreateChart:
                 "y_column": "value"
             })
 
+            # 除了图表提示，还检查全量数据覆盖与极值类别，避免只用部分行绘图。
             assert "chart" in result.lower() or "图" in result
             # 覆盖说明用于防止上层 Agent 把抽样图表误称为全量结论。
             assert "Data coverage: all 3 rows" in result

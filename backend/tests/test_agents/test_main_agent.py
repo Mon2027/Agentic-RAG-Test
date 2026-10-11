@@ -2,6 +2,7 @@
 
 这些测试不调用真实大模型，而是通过 patch 替换配置、ChatAnthropic、工具工厂和
 ``deepagents.create_deep_agent``，再检查主 Agent 创建过程中传递的参数。
+因此这里验证的是“创建时如何组装依赖”，不是大模型实际回答的质量。
 
 重点学习内容：
 
@@ -38,6 +39,7 @@ class TestMainAgentPrompt:
         """数据分析子 Agent 提示词应覆盖清洗、统计、可视化及必需工具。"""
         from app.agents.main_agent import DATA_ANALYST_PROMPT
 
+        # 对完整提示词做成员检查：缺少任一能力或工具名称时，对应断言会指出问题。
         assert "数据清洗" in DATA_ANALYST_PROMPT
         assert "统计分析" in DATA_ANALYST_PROMPT
         assert "数据可视化" in DATA_ANALYST_PROMPT
@@ -47,6 +49,7 @@ class TestMainAgentPrompt:
         """RAG 子 Agent 提示词应包含检索预算、主题和证据年份/页码规则。"""
         from app.agents.main_agent import RAG_ANALYST_PROMPT
 
+        # 这些断言只检查规则是否写入提示词，不会调用模型判断规则执行效果。
         assert "语义检索" in RAG_ANALYST_PROMPT
         assert "信息整合" in RAG_ANALYST_PROMPT
         assert "search_reports" in RAG_ANALYST_PROMPT
@@ -98,6 +101,9 @@ class TestCreateMainAgent:
             create_deep_agent=mock_create_deep_agent,
             register_harness_profile=mock_register_harness_profile,
         )
+        # side_effect 让“构造函数 mock”接收实参并返回可读取字段的简单对象。
+        # 若只用默认 MagicMock 返回值，后面的 enabled/excluded_tools 断言就
+        # 无法核对创建代码实际传入的配置。
         mock_deepagents.GeneralPurposeSubagentProfile.side_effect = (
             lambda *, enabled: SimpleNamespace(enabled=enabled)
         )
@@ -118,6 +124,7 @@ class TestCreateMainAgent:
 
             create_main_agent()
 
+        # call_args.args 保存最后一次调用的位置参数，这里解包出注册键与配置对象。
         # 验证 harness profile 关闭 general-purpose，并隐藏文件系统/执行类工具和中间件。
         mock_register_harness_profile.assert_called_once()
         profile_key, profile = mock_register_harness_profile.call_args.args
@@ -126,6 +133,7 @@ class TestCreateMainAgent:
         task_description = profile.tool_description_overrides["task"]
         assert "{available_agents}" in task_description
         assert "不得使用 `general-purpose`" in task_description
+        # frozenset 比较不依赖元素顺序，且会发现多排除或少排除的工具。
         assert profile.excluded_tools == frozenset({
             "write_todos",
             "ls",
@@ -136,6 +144,7 @@ class TestCreateMainAgent:
             "grep",
             "execute",
         })
+        # task 负责路由子 Agent；联网搜索也应继续可用。
         assert "task" not in profile.excluded_tools
         assert "web_search" not in profile.excluded_tools
 
@@ -144,12 +153,14 @@ class TestCreateMainAgent:
         from app.agents.tool_boundary import BusinessToolBoundaryMiddleware
 
         assert profile.excluded_middleware == frozenset({TodoListMiddleware})
+        # extra_middleware 是返回中间件列表的工厂，因此要先调用再检查结果。
         boundary_middleware = profile.extra_middleware()
         assert len(boundary_middleware) == 1
         assert isinstance(boundary_middleware[0], BusinessToolBoundaryMiddleware)
         assert boundary_middleware[0].disabled_tools == profile.excluded_tools
 
-        # 最终传给 create_deep_agent 的可路由子 Agent 只能是两个业务角色。
+        # call_args.kwargs 保存最后一次调用的关键字参数；取出其中的子 Agent 列表。
+        # 这里比较整个名称列表，同时验证数量和默认角色的排列顺序。
         subagent_names = [
             subagent["name"]
             for subagent in mock_create_deep_agent.call_args.kwargs["subagents"]
@@ -203,7 +214,7 @@ class TestCreateMainAgent:
         assert call_kwargs["max_tokens"] == 4096
         assert call_kwargs["temperature"] == 0.7
 
-        # Agent 工厂必须被调用一次，证明模型和工具完成了最终装配。
+        # 这里只核对工厂调用次数；具体子 Agent 配置由下方独立用例检查。
         mock_create_deep_agent.assert_called_once()
 
     @patch("app.agents.main_agent.create_web_search_tool")
@@ -244,7 +255,7 @@ class TestCreateMainAgent:
 
             create_main_agent()
 
-        # api_timeout_ms=30000 需要转换成客户端使用的 30.0 秒。
+        # 配置值采用毫秒，模型客户端的 timeout 参数采用秒：30000 / 1000 = 30.0。
         call_kwargs = mock_chat_anthropic.call_args.kwargs
         assert call_kwargs["base_url"] == "https://custom-api.example.com"
         assert call_kwargs["timeout"] == 30.0
@@ -289,9 +300,10 @@ class TestCreateMainAgent:
             additional_tool = MagicMock(name="custom_tool")
             create_main_agent(tools=[additional_tool])
 
-        # tools 最终同时包含 web_search 与 custom_tool。
+        # 工厂收到的 tools 数量应为默认 Web 工具 1 个加上自定义工具 1 个。
+        # 此处只验证数量，未逐一验证列表中对象的身份。
         call_kwargs = mock_create_deep_agent.call_args.kwargs
-        assert len(call_kwargs["tools"]) == 2  # web_search + custom_tool
+        assert len(call_kwargs["tools"]) == 2
 
     @patch("app.agents.main_agent.create_web_search_tool")
     @patch("app.agents.main_agent.create_data_analyst_tools")
@@ -339,9 +351,9 @@ class TestCreateMainAgent:
             }
             create_main_agent(subagents=[additional_subagent])
 
-        # 默认 2 个 + 自定义 1 个，共 3 个；验证扩展没有覆盖默认角色。
+        # 默认 2 个 + 自定义 1 个，共 3 个；这里只验证数量，不检查排列顺序。
         call_kwargs = mock_create_deep_agent.call_args.kwargs
-        assert len(call_kwargs["subagents"]) == 3  # data-analyst + rag-analyst + custom
+        assert len(call_kwargs["subagents"]) == 3
 
 
 class TestGetMainAgent:
@@ -361,7 +373,7 @@ class TestGetMainAgent:
         agent1 = get_main_agent()
         agent2 = get_main_agent()
 
-        # 对象身份使用 is 判断，而不是仅比较内容相等。
+        # is 比较是否为同一个对象；两个不同但内容相等的对象不能通过这个断言。
         assert agent1 is agent2
         # 第二次 get_main_agent 应直接复用缓存。
         mock_create.assert_called_once()
@@ -428,7 +440,8 @@ class TestSubagentConfiguration:
         call_kwargs = mock_create_deep_agent.call_args.kwargs
         subagents = call_kwargs["subagents"]
 
-        # 不依赖列表位置，通过 name 查找目标子 Agent，使断言更稳健。
+        # next 取生成器中的第一个匹配项；若找不到该名称，会抛出 StopIteration，
+        # 测试因此失败。不依赖列表位置，新增其他子 Agent 不会影响本用例。
         data_analyst = next(s for s in subagents if s["name"] == "data-analyst")
 
         assert data_analyst["name"] == "data-analyst"

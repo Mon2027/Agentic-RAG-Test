@@ -3,15 +3,23 @@
 LangChain/DeepAgents 通过 ``astream_events(version="v2")`` 异步产出链、模型和工具
 事件。评测前必须把原始事件整理成稳定的 ``AgentRouteTrace``，包括：
 
-* 工具开始/结束的真实时间顺序；
+* 收集器观察到的工具开始/结束事件顺序；
 * task 工具选择的 subagent_type 及工具参数；
 * start/end 事件之间的参数关联与可 JSON 序列化输出；
 * 主链最终输出或流式异常；
 * 超出每个评测用例工具预算时立即关闭异步流。
 
 这里用 ``FakeStreamingAgent`` 精确控制事件序列，不需要真实模型或业务工具。
+每个用例都遵循“准备事件 → 收集异步事件流 → 检查轨迹”的流程。
+事件中的工具名称仅表示模拟发生的调用，不会在测试中真正执行这些工具。
+
+阅读时区分三个字段：``run_id`` 标识一次运行并关联开始/结束；``parent_ids``
+表示父级运行链；``subagent_type`` 是 task 输入参数中选择的子 Agent 类型。
+收集结果中，``events`` 保存工具生命周期事件，``final_output`` 单独保存主链输出，
+``stream_error`` 保存收集过程中出现的异常或工具预算错误。
 """
 
+# dataclass 自动生成初始化方法，让 FakeOutput(content="检索完成") 成为简单数据对象。
 from dataclasses import dataclass
 from typing import Any
 
@@ -31,6 +39,7 @@ class FakeStreamingAgent:
         # events 是正常产出序列；error 若存在，会在所有事件产出后抛出。
         self.events = events
         self.error = error
+        # calls 记录收集器传给 astream_events 的参数；closed 用于观察流的生命周期。
         self.calls: list[dict[str, Any]] = []
         self.closed = False
 
@@ -42,6 +51,8 @@ class FakeStreamingAgent:
         config: dict[str, Any],
     ):
         """模拟 LangChain v2 异步事件流，并确保 finally 可观察流是否关闭。"""
+        # async def 中包含 yield，所以此方法是异步生成器；收集器通过 async for
+        # 逐条取得事件。它不会像普通协程那样一次返回整个事件列表。
         self.calls.append({
             "agent_input": agent_input,
             "version": version,
@@ -49,6 +60,7 @@ class FakeStreamingAgent:
         })
         try:
             for event in self.events:
+                # yield 把一个事件交给收集器；只有收集器继续取值时才向下执行。
                 yield event
             if self.error is not None:
                 raise self.error
@@ -61,9 +73,11 @@ class FakeStreamingAgent:
 class FakeOutput:
     """非字典输出，用于验证收集器能把 dataclass 转成 JSON 安全结构。"""
 
+    # 收集器会将该对象转换为 {"content": "..."}，方便后续保存为 JSON。
     content: str
 
 
+# pytest 的异步插件根据 asyncio 标记，在事件循环中运行这些 async 测试函数。
 @pytest.mark.asyncio
 async def test_collects_subagent_arguments_and_complete_tool_order():
     """应收集 task→search_reports 完整层级、参数、输出和最终回答。"""
@@ -71,6 +85,7 @@ async def test_collects_subagent_arguments_and_complete_tool_order():
     # task 随后结束，最后主链给出最终回答。
     events = [
         {
+            # start 提供调用输入；后面的 end 使用相同 run_id 提供输出。
             "event": "on_tool_start",
             "name": "task",
             "run_id": "task-1",
@@ -118,6 +133,7 @@ async def test_collects_subagent_arguments_and_complete_tool_order():
             "event": "on_chain_end",
             "name": "main-agent",
             "run_id": "root",
+            # 空父链表示根链结束，output 因此应成为 trace.final_output。
             "parent_ids": [],
             "data": {"output": {"messages": ["最终回答"]}},
         },
@@ -125,12 +141,14 @@ async def test_collects_subagent_arguments_and_complete_tool_order():
     agent = FakeStreamingAgent(events)
 
     # collector 会在调用方 config 基础上补默认 recursion_limit=50。
+    # recursion_limit 是图运行的步数限制，与下方 max_tool_calls 的工具计数限制不同。
     trace = await collect_agent_route_events(
         agent,
         {"messages": ["用户问题"]},
         config={"configurable": {"test_case_id": "AGENT-RAG-001"}},
     )
 
+    # 整个列表相等：既检查只启动一次事件流，也检查输入、事件协议和配置传递。
     assert agent.calls == [{
         "agent_input": {"messages": ["用户问题"]},
         "version": "v2",
@@ -142,15 +160,18 @@ async def test_collects_subagent_arguments_and_complete_tool_order():
     # tool_call_order 只统计 start，避免同一工具的 end 被误算成第二次调用。
     assert trace.tool_call_order == ["task", "search_reports"]
     assert trace.task_subagent_sequence == ["rag-analyst"]
+    # 原始序列有5条事件，工具轨迹只有4条；主链结束事件单独用于保存最终输出。
     assert [event.event for event in trace.events] == [
         "on_tool_start",
         "on_tool_start",
         "on_tool_end",
         "on_tool_end",
     ]
+    # sequence 是收集器从1开始分配的工具事件序号，不是时间戳。
     assert [event.sequence for event in trace.events] == [1, 2, 3, 4]
 
     # 通过 run_id 关联后，end 事件应继承对应 start 的参数与子 Agent 类型。
+    # 列表解包为四个变量，方便分别检查嵌套工具的开始与结束记录。
     task_start, search_start, search_end, task_end = trace.events
     assert task_start.arguments == {
         "subagent_type": "rag-analyst",
@@ -164,6 +185,7 @@ async def test_collects_subagent_arguments_and_complete_tool_order():
         "topic": "embodied_intelligence",
     }
     assert search_end.arguments == search_start.arguments
+    # FakeOutput 被转成字典；这里检查结构转换结果，没有实际调用 json.dumps。
     assert search_end.output == {"content": "检索完成"}
     assert task_end.arguments == task_start.arguments
     assert task_end.subagent_type == "rag-analyst"
@@ -175,6 +197,7 @@ async def test_collects_subagent_arguments_and_complete_tool_order():
 async def test_keeps_repeated_and_interleaved_tool_event_order():
     """工具并发交错或重复时，应严格保留原始 start/end 到达顺序。"""
     # task 内启动 list_data_files，同时主链又启动 web_search；结束顺序与启动顺序相反。
+    # 这些事件模拟并发交错，测试本身按列表顺序产出，不会启动真实并发任务。
     events = [
         {
             "event": "on_tool_start",
@@ -223,6 +246,7 @@ async def test_keeps_repeated_and_interleaved_tool_event_order():
 
     # 调用顺序按 start 事件，而完整事件序列还必须保留交错的 end。
     assert trace.tool_call_order == ["task", "list_data_files", "web_search"]
+    # 列表推导式把事件简化为“工具名、阶段”元组，直接检查到达顺序。
     assert [(event.tool, event.phase) for event in trace.events] == [
         ("task", "start"),
         ("list_data_files", "start"),
@@ -231,7 +255,9 @@ async def test_keeps_repeated_and_interleaved_tool_event_order():
         ("list_data_files", "end"),
         ("task", "end"),
     ]
+    # 索引3是第4条事件，即 web_search 的结束事件；它应继承开始时的查询参数。
     assert trace.events[3].arguments == {"query": "今日新闻", "max_results": 3}
+    # -1 取最后一条事件，即 task 结束记录，子 Agent 类型也应得到恢复。
     assert trace.events[-1].subagent_type == "data-analyst"
 
 
@@ -245,6 +271,8 @@ async def test_returns_partial_trace_when_stream_fails():
             "run_id": "web-1",
             "data": {"input": {"query": "实时股价"}},
         }],
+        # 替身会先产出上面的工具开始事件，再主动抛出超时异常。
+        # 这是人为触发的异常，不会等待真实模型请求超时。
         error=TimeoutError("model timed out"),
     )
 
@@ -261,6 +289,7 @@ async def test_returns_partial_trace_when_stream_fails():
         "type": "TimeoutError",
         "message": "model timed out",
     }
+    # 显式配置应覆盖默认的50；异常发生后，流也应完成关闭。
     assert agent.calls[0]["config"]["recursion_limit"] == 25
     assert agent.closed is True
 
@@ -268,6 +297,7 @@ async def test_returns_partial_trace_when_stream_fails():
 @pytest.mark.asyncio
 async def test_allows_stream_to_complete_at_exact_tool_call_budget():
     """工具调用数恰好等于预算时应允许完成并保留最终输出。"""
+    # 两个 start 加一个根链 end；预算统计工具启动次数，不统计链结束事件。
     events = [
         {
             "event": "on_tool_start",
@@ -307,6 +337,7 @@ async def test_allows_stream_to_complete_at_exact_tool_call_budget():
 @pytest.mark.asyncio
 async def test_closes_stream_immediately_after_tool_call_budget_is_exceeded():
     """观察到第一个超预算工具 start 后，应立即关闭流并记录预算错误。"""
+    # range(1, 5) 生成四个工具开始事件，末尾再放一个不应被读取的最终输出。
     events = [
         {
             "event": "on_tool_start",
@@ -332,6 +363,7 @@ async def test_closes_stream_immediately_after_tool_call_budget_is_exceeded():
     )
 
     # 第 3 次 start 是发现越界所必需的证据；第 4 次和 chain_end 不应再被消费。
+    # 收集器记录的是已观察事件，所以会保留第3条；这不表示它在执行前拒绝了第3次调用。
     assert trace.tool_call_order == ["tool_1", "tool_2", "tool_3"]
     assert trace.final_output is None
     assert trace.stream_error == {
@@ -341,6 +373,7 @@ async def test_closes_stream_immediately_after_tool_call_budget_is_exceeded():
             "The Agent event stream was closed immediately."
         ),
     }
+    # break 停止收集后，收集器主动 aclose()，触发替身生成器的 finally。
     assert agent.closed is True
 
 
@@ -349,6 +382,8 @@ async def test_rejects_negative_tool_call_budget_before_starting_stream():
     """负数预算属于调用方配置错误，应在启动 Agent 流之前直接拒绝。"""
     agent = FakeStreamingAgent([])
 
+    # 配置非法时应直接抛错；pytest.raises 检查异常类型，match 匹配错误文本。
+    # 与流运行异常不同，这类参数错误不应被包装进 trace.stream_error。
     with pytest.raises(ValueError, match="max_tool_calls must be non-negative"):
         await collect_agent_route_events(
             agent,

@@ -30,6 +30,7 @@ class TestRetrievalResult:
             score=0.85,
         )
 
+        # to_dict 供 API 响应或调试输出使用；三个字段都应保持原值。
         result_dict = result.to_dict()
 
         assert result_dict["content"] == "test content"
@@ -96,6 +97,7 @@ class TestRetrievedContext:
 
         formatted = context.format_context()
 
+        # page_start/page_end 是切分阶段保存的结构化页码，这里检查展示格式。
         assert "第3-4页" in formatted
         assert "章节: 一、核心观点" in formatted
 
@@ -123,6 +125,7 @@ class TestRetrievedContext:
 
         formatted = context.format_context()
 
+        # content_type=table 既影响片段标题，也应在上下文中保留原始表格文本。
         assert "--- 表格片段 1" in formatted
         assert "类型: 表格" in formatted
         assert "| 营收 | 120 |" in formatted
@@ -161,6 +164,7 @@ class TestRetrievedContext:
 
         formatted = context.format_context(include_metadata=False)
 
+        # 关闭元数据展示不等于删除正文；只禁止相似度等辅助信息出现在文本里。
         assert "--- 文档片段 1 ---" in formatted
         assert "Test content" in formatted
         assert "相似度" not in formatted
@@ -185,6 +189,7 @@ class TestRetrievedContext:
 
         result_dict = context.to_dict()
 
+        # results 是命中分块，sources 是供答案引用的来源摘要，二者用途不同。
         assert result_dict["query"] == "test query"
         assert len(result_dict["results"]) == 1
         assert len(result_dict["sources"]) == 1
@@ -252,6 +257,7 @@ class TestRetriever:
         retriever = Retriever(candidate_multiplier=4)
         retriever.retrieve("test query", top_k=5)
 
+        # 即使向量库没有返回结果，也能从 mock 的调用记录检查传入的 k。
         call_args = mock_vs.similarity_search_with_scores.call_args
         assert call_args.kwargs["k"] == 20
 
@@ -288,6 +294,7 @@ class TestRetriever:
         retriever = Retriever(candidate_multiplier=4)
         context = retriever.retrieve("营收是多少", top_k=1)
 
+        # top_k=1 迫使重排器在正文与表格之间做出明确选择。
         assert len(context.results) == 1
         assert context.results[0].metadata["content_type"] == "table"
         # rerank_reasons 不只验证排序结果，还说明“为什么”发生了加分。
@@ -324,6 +331,7 @@ class TestRetriever:
 
         variants = retriever._query_variants(query)
 
+        # 第一项保留原问题，后两项补充合作与送样词；排除不相关的原因类模板。
         assert variants == [
             query,
             PROGRESS_QUERY_REWRITE,
@@ -414,6 +422,8 @@ class TestRetriever:
             if result.metadata["page_number"] == 1
         )
 
+        # 页码集合证明两类证据都进入 Top-5；all() 进一步检查事实关键词没有缺项。
+        # rerank_reasons 则说明低原始分的进展片段是被进展规则提升上来的。
         assert {1, 25}.issubset(top_five_pages)
         assert all(term in top_five_text for term in expected_terms)
         assert "progress" in progress_result.metadata["rerank_reasons"]
@@ -464,6 +474,7 @@ class TestRetriever:
             top_k=1,
         )
 
+        # 如果只按原始相似度排序，0.90 的表格会胜出；此断言检验原因意图重排。
         assert context.results[0].content.startswith("经营分析")
         assert "explanation" in context.results[0].metadata["rerank_reasons"]
 
@@ -526,6 +537,7 @@ class TestRetriever:
         context = retriever.retrieve("盈利怎么样", top_k=1)
 
         metadata = context.results[0].metadata
+        # 一条去重后的结果仍要保留三个变体的命中记录，而非只留下最后一次查询。
         assert metadata["matched_query_count"] == 3
         assert "盈利怎么样" in metadata["query_variants"]
         assert "盈利能力 毛利率 净利率 净利润" in metadata["query_variants"]
@@ -562,6 +574,7 @@ class TestRetriever:
         retriever = Retriever(candidate_multiplier=4)
         context = retriever.retrieve("2025E EPS", top_k=1)
 
+        # 向量候选不含精确指标；关键词候选应胜出并标明其来源通道和分数。
         assert context.results[0].content == "2025E EPS 为 2.10 元。"
         assert context.results[0].metadata["search_type"] == "keyword"
         assert context.results[0].metadata["keyword_score"] == 0.95
@@ -585,6 +598,7 @@ class TestRetriever:
         retriever = Retriever()
         context = retriever.retrieve("营收增长", top_k=5)
 
+        # 同一 id 只出现一次，但 metadata 要同时保留两个通道的得分以便诊断。
         assert len(context.results) == 1
         assert context.results[0].metadata["search_type"] == "keyword+vector"
         assert context.results[0].metadata["vector_score"] == 0.82
@@ -594,6 +608,7 @@ class TestRetriever:
     def test_rerank_boosts_company_and_filename_matches(self, mock_get_vs):
         """查询中的公司名和标题词命中文件名时，应提升对应报告的排序。"""
         mock_vs = MagicMock()
+        # 泛化报告原始分更高，目标公司报告原始分更低，构造排序逆转场景。
         mock_vs.similarity_search_with_scores.return_value = [
             (
                 {
@@ -620,6 +635,7 @@ class TestRetriever:
         retriever = Retriever(query_rewrite_enabled=False)
         context = retriever.retrieve("创益通连接器业务低空经济打开想象空间", top_k=1)
 
+        # 只保留第一名，验证目标公司确实被提到首位，而不仅仅是进入结果列表。
         assert context.results[0].metadata["file_id"] == "f1"
         assert "company" in context.results[0].metadata["rerank_reasons"]
 
@@ -753,6 +769,7 @@ class TestRetriever:
         )
         context = retriever.retrieve("比较凌云光与奥普特的机器视觉业务收入", top_k=2)
 
+        # 用集合检查两家公司都入选，避免测试结果依赖两者之间的具体次序。
         assert {result.metadata["file_id"] for result in context.results} == {
             "lingyunguang-report",
             "opt-report",
@@ -786,6 +803,7 @@ class TestRetriever:
         )
         context = retriever.retrieve("具身智能行业发展趋势", top_k=3)
 
+        # 这是防止规则误触发的反向用例：通用问题应保持原始分数顺序。
         assert [result.score for result in context.results] == [0.90, 0.89, 0.88]
         assert all(
             "other_company" not in result.metadata.get("rerank_reasons", "")
@@ -808,6 +826,7 @@ class TestRetriever:
 
         mock_vs.similarity_search_with_scores.assert_called_once()
         call_args = mock_vs.similarity_search_with_scores.call_args
+        # 检查底层调用参数，而不只检查最终内容；这样能证明过滤发生在召回阶段。
         assert call_args.kwargs["filter_"] == {"file_id": "target_file"}
 
     def test_topic_filter_reaches_vector_and_keyword_recall(self):
@@ -844,6 +863,7 @@ class TestRetriever:
             topic="embodied_intelligence",
         )
 
+        # $and 表示候选必须同时属于指定报告和指定主题，缺一不可。
         assert mock_vs.similarity_search_with_scores.call_args.kwargs["filter_"] == {
             "$and": [
                 {"file_id": "report-001"},
@@ -884,6 +904,7 @@ class TestRetriever:
 
         def similarity_search(*, query, k, filter_):
             """模拟向量库根据 filter_ 在召回阶段筛选语料。"""
+            # 本例只观察过滤效果；query 和 k 是接口参数，但不参与假实现。
             del query, k
             if filter_ == {"topic": "embodied_intelligence"}:
                 return [all_candidates[1]]
@@ -907,6 +928,7 @@ class TestRetriever:
             topic="embodied_intelligence",
         )
 
+        # 先证实无过滤会出现干扰项，再证实指定主题后只剩目标主题。
         assert any(result.metadata["topic"] == "low_altitude" for result in baseline.results)
         assert [result.metadata["file_id"] for result in filtered.results] == ["embodied-report"]
         assert {result.metadata["topic"] for result in filtered.results} == {"embodied_intelligence"}
@@ -988,6 +1010,7 @@ class TestRetriever:
         retriever = Retriever()
         context = retriever.retrieve("test query")
 
+        # 来源对象保存页面范围，回答生成时才能准确引用跨页证据。
         assert len(context.sources) == 1
         assert context.sources[0]["page_number"] == 3
         assert context.sources[0]["page_start"] == 3
@@ -1019,6 +1042,7 @@ class TestRetriever:
         retriever = Retriever()
         context = retriever.retrieve("营收")
 
+        # 表格标记随来源传递，后续格式化可区分表格证据与叙述正文。
         assert context.sources[0]["content_type"] == "table"
 
     @patch("app.rag.retriever.get_vector_store")
@@ -1127,6 +1151,7 @@ class TestRetriever:
         retriever = Retriever()
         summary = retriever.get_document_summary("file123")
 
+        # 一个跨第 2–4 页的分块只占一条 chunk，却覆盖三个不同页面。
         assert summary["page_count"] == 3
         assert summary["pages"] == [2, 3, 4]
 
@@ -1153,6 +1178,8 @@ class TestGetRetriever:
     @patch("app.rag.retriever.get_vector_store")
     def test_get_retriever_singleton(self, mock_get_vs, mock_get_settings):
         """工厂应只创建一个 Retriever，并从应用设置读取全部检索参数。"""
+        # 下方两个 patch 从下往上注入：向量库工厂 mock 是第一个参数，
+        # 设置工厂 mock 是第二个参数，避免读取真实配置或连接真实向量库。
         mock_vs = MagicMock()
         mock_get_vs.return_value = mock_vs
         mock_settings = MagicMock()
